@@ -9,6 +9,10 @@ const {
   importFromGithub,
 } = require('./lib');
 
+// Processing modes
+const DRY = process.argv.includes('--dry');
+const FORCE = process.argv.includes('--force');
+
 /**
  * Checks if .env is properly set.
  */
@@ -50,7 +54,7 @@ async function startBackup() {
     const prev = prevRepos.find(x => x.id === repo.id);
     try {
       // check if repo is updated or not
-      if (prev && updatedAt <= new Date(prev.updated_at)) {
+      if (!FORCE && prev && updatedAt <= new Date(prev.updated_at)) {
         console.log(`GitHub repo updated at ${repo.updated_at} : Not updated.`);
         continue;
       }
@@ -59,7 +63,7 @@ async function startBackup() {
       if (project) {
         // project already exists
         const lastActivityAt = new Date(project.last_activity_at);
-        if (updatedAt <= lastActivityAt) {
+        if (!FORCE && updatedAt <= lastActivityAt) {
           console.log(`GitHub repo updated at ${repo.updated_at}, GitLab last activity at ${format(lastActivityAt)}.`);
           repo.updated_at = format(lastActivityAt);
           console.log(`Not updated after GitLab last activity.`);
@@ -68,7 +72,7 @@ async function startBackup() {
         // delete existing project from GitLab
         console.log(`Deleting project... (id: ${project.id})`);
         try {
-          await deleteGitlabProject(project.id);
+          if (!DRY) await deleteGitlabProject(project.id);
         } catch (error) {
           console.error(`Failed to delete project. (id: ${project.id})`);
           continue;
@@ -77,7 +81,7 @@ async function startBackup() {
       }
       // start to imoport
       console.log(`Queueing import GitHub repo to GitLab project...`);
-      await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
+      if (!DRY) await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
     } catch (e) {
       // over write updated_at if not successfully finished.
       if (e.config && e.response) {
@@ -91,7 +95,7 @@ async function startBackup() {
       n += 1;
     }
   }
-  saveReposInfo(reposFilename, repos);
+  if (!DRY) saveReposInfo(reposFilename, repos);
 }
 
 checkEnv();

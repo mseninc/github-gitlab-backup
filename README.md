@@ -31,6 +31,28 @@ Set ALL variables in .env.
 npm start
 ```
 
+is as same as below.
+
+```bash
+node index.js
+```
+
+#### force mode
+
+`--force` mode will ignore the previous timestamp to backup all repos forcibly.
+
+```bash
+node index.js --force
+```
+
+#### dry mode
+
+`--dry` mode will check all of target repos but neither delete projects nor import repos.
+
+```bash
+node index.js --dry
+```
+
 ## License
 
 Copyright (c) 2019 MESN Inc.
