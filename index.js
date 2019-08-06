@@ -98,5 +98,13 @@ async function startBackup() {
   if (!DRY) saveReposInfo(reposFilename, repos);
 }
 
-checkEnv();
-startBackup();
+(async () => {
+  try {
+    await checkEnv();
+    await startBackup();
+  } catch (e) {
+    // unhandled exception
+    console.error(e);
+    process.exit(1);
+  }
+})();
