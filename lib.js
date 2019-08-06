@@ -43,17 +43,40 @@ function saveReposInfo(filename, repos) {
   fs.writeFileSync(filename, JSON.stringify(repos, null, '  '));
 }
 
+async function getGithubReposPage(url) {
+  const result = await github.get(url);
+  let next = null;
+  if (result.headers && result.headers.link) {
+    // extract next url from "link" header
+    const matches = /\<([^<>]+)\>; rel\="next"/.exec(result.headers.link);
+    if (matches) {
+      next = matches[1];
+    }
+  }
+  const data = (result.data
+      && result.data.length > 0
+      && result.data.map(({ id, name, updated_at }) => ({ id, name, updated_at }))
+    ) || null;
+  return {
+    next,
+    data,
+  };
+}
+
 /**
  * Gets a list of repos in GitHub.
  * @param {String} ownerType Resource type of owner (orgs|users)
  * @param {String} owner Owner name
  */
 async function getGithubRepos(ownerType, owner) {
-  const result = await github.get(`${ownerType}/${owner}/repos`, {
-    params: { sort: 'full_name' },
-  });
-  if (!result.data || result.data.length === 0) return null;
-  return result.data.map(({ id, name, updated_at }) => ({ id, name, updated_at }));
+  let url = `${ownerType}/${owner}/repos?sort=full_name`;
+  const array = [];
+  while (url) {
+    const { next, data } = await getGithubReposPage(url);
+    if (data) array.push(data);
+    url = next;
+  }
+  return array.flat();
 }
 
 /**

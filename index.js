@@ -34,8 +34,9 @@ function checkEnv() {
  */
 async function startBackup() {
   const reposFilename = `repos_${env.GITHUB_OWNER}.json`;
-
   const prevRepos = await loadReposInfo(reposFilename);
+
+  console.log('Collecting GitHub repo informations...');
   const repos = await getGithubRepos(env.GITHUB_TYPE, env.GITHUB_OWNER);
   if (!repos) {
     console.log('No repository found.');
@@ -45,10 +46,10 @@ async function startBackup() {
   let n = 0;
   for (const repo of repos) {
     console.group(n + 1, repo.name); // start grouping
+    const updatedAt = new Date(repo.updated_at);
+    const prev = prevRepos.find(x => x.id === repo.id);
     try {
       // check if repo is updated or not
-      const updatedAt = new Date(repo.updated_at);
-      const prev = prevRepos.find(x => x.id === repo.id);
       if (prev && updatedAt <= new Date(prev.updated_at)) {
         console.log(`GitHub repo updated at ${repo.updated_at} : Not updated.`);
         continue;
@@ -79,16 +80,15 @@ async function startBackup() {
       await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
     } catch (e) {
       // over write updated_at if not successfully finished.
-      repo.updated_at = prev ? prev.updated_at : null;
       if (e.config && e.response) {
         console.error(`${e.config.method} ${e.config.url} : ${e.response.status} ${e.response.statusText}`)
       } else {
         console.error(e.message);
       }
+      repo.updated_at = prev ? prev.updated_at : null;
     } finally {
       console.groupEnd(); // end grouping
       n += 1;
-      // if (n > 3) break;
     }
   }
   saveReposInfo(reposFilename, repos);
