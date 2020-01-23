@@ -55,7 +55,7 @@ async function getGithubReposPage(url) {
   }
   const data = (result.data
       && result.data.length > 0
-      && result.data.map(({ id, name, updated_at }) => ({ id, name, updated_at }))
+      && result.data.map(({ id, name, git_url, updated_at }) => ({ id, name, git_url, updated_at }))
     ) || null;
   return {
     next,
@@ -110,6 +110,30 @@ async function importFromGithub(repoId, targetNamespace) {
   await gitlab.post('import/github', data);
 }
 
+/**
+ * Get all branches from GitHub repo.
+ * @param {String} ownerType Resource type of owner(orgs | users) 
+ * @param {String} owner Owner name
+ * @param {String} repoName GitHub repo name
+ */
+async function getBranchesFromGitHub(ownerType, owner, repoName) {
+  const result = await github.get(`/repos/${owner}/${repoName}/branches`);
+  return result.data.map(({ name, commit }) => ({ name, sha: commit.sha }));
+}
+
+/**
+ * Check whether the specified file or directory exists
+ * @param {String} file Filename
+ */
+function isFileExist(file) {
+  try {
+    fs.statSync(file);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+  }
+}
+
 module.exports = {
   loadReposInfo,
   saveReposInfo,
@@ -117,4 +141,6 @@ module.exports = {
   getGitlabProject,
   deleteGitlabProject,
   importFromGithub,
+  getBranchesFromGitHub,
+  isFileExist,
 };
