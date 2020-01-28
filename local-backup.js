@@ -1,3 +1,5 @@
+const path = require('path');
+const git = require('simple-git/promise')();
 const env = require('dotenv').config().parsed;
 const {
     format
@@ -52,9 +54,9 @@ async function startBackup() {
     for (const repo of repos) {
         console.group(n + 1, repo.name); // start grouping
         if (!isFileExist(`repos/${repo.name}`)) {
-            console.log(`git clone ${repo.git_url}`);
-            const git = require('simple-git/promise')('repos');
-            await git.clone(repo.git_url);
+            if (!DRY) await git.cwd(path.join(process.cwd(), 'repos'));
+            console.log(`cloning ${repo.name}...`);
+            if (!DRY) await git.silent(true).clone(repo.clone_url);
         }
         // process.chdir(`${repo.name}`);
         const updatedAt = new Date(repo.updated_at);
@@ -66,13 +68,12 @@ async function startBackup() {
                 continue;
             }
             const branches = await getBranchesFromGitHub(env.GITHUB_TYPE, env.GITHUB_OWNER, repo.name);
-            console.log('branches: ', branches);
-            const git = require('simple-git/promise')(`repos/${repo.name}`);
+            if (!DRY) await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
             for (const branch of branches) {
-                console.log(`git checkout ${branch.name}`);
-                await git.checkout(branch.name);
-                console.log('git pull');
-                await git.pull();
+                console.log(`checking out ${branch.name}...`);
+                if (!DRY) await git.checkout(branch.name);
+                console.log(`pulling ${branch.name}...`);
+                if (!DRY) await git.pull();
             }
         } catch (e) {
             // over write updated_at if not successfully finished.
