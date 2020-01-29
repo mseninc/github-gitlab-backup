@@ -69,12 +69,12 @@ async function getGithubReposPage(url) {
           id,
           name,
           clone_url,
-          updated_at
+          updated_at,
       }) => ({
           id,
           name,
           updated_at,
-          clone_url: authUrl(clone_url, env.GITHUB_USER, env.GITHUB_TOKEN)
+          clone_url: authUrl(clone_url, env.GITHUB_USER, env.GITHUB_TOKEN),
       }))
     ) || null;
   return {
@@ -132,7 +132,7 @@ async function importFromGithub(repoId, targetNamespace) {
 
 /**
  * Get all branches from GitHub repo.
- * @param {String} ownerType Resource type of owner(orgs | users) 
+ * @param {String} ownerType Resource type of owner(orgs | users)
  * @param {String} owner Owner name
  * @param {String} repoName GitHub repo name
  */
