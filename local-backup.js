@@ -58,7 +58,6 @@ async function startBackup() {
       console.log(`cloning ${repo.name}...`);
       if (!DRY) await git.silent(true).clone(repo.clone_url);
     }
-    // process.chdir(`${repo.name}`);
     const updatedAt = new Date(repo.updated_at);
     const prev = prevRepos.find(x => x.id === repo.id);
     try {
