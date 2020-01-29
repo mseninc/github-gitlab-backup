@@ -68,7 +68,10 @@ async function startBackup() {
         continue;
       }
       const branches = await getBranchesFromGitHub(env.GITHUB_TYPE, env.GITHUB_OWNER, repo.name);
-      if (!DRY) await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
+      if (!DRY) {
+        await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
+        await git.fetch();
+      }
       for (const branch of branches) {
         console.log(`checking out ${branch.name}...`);
         if (!DRY) await git.checkout(branch.name);
