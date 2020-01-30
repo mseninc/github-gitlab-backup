@@ -50,45 +50,50 @@ async function startBackup() {
     return;
   }
   console.log(`${repos.length} repositories found.`);
-  await Promise.all(repos.reduce((acc, repo) => [...acc, backup(repo, prevRepos)], []));
+  let n = 0;
+  for (const repo of repos) {
+    console.group(n + 1, repo.name); // start grouping
+    if (!isFileExist(`repos/${repo.name}`)) {
+      if (!DRY) await git.cwd(path.join(process.cwd(), 'repos'));
+      console.log(`cloning ${repo.name}...`);
+      if (!DRY) await git.silent(true).clone(repo.clone_url);
+    }
+    const updatedAt = new Date(repo.updated_at);
+    const prev = prevRepos.find(x => x.id === repo.id);
+    try {
+      // check if repo is updated or not
+      if (!FORCE && prev && updatedAt <= new Date(prev.updated_at)) {
+        console.log(`GitHub repo updated at ${repo.updated_at} : Not updated.`);
+        continue;
+      }
+      const branches = await getBranchesFromGitHub(env.GITHUB_TYPE, env.GITHUB_OWNER, repo.name);
+      if (!DRY) {
+        await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
+        if (!await git.checkIsRepo()) throw new Error(`${repo.name} is not git a repository...`);
+        await git.fetch();
+      }
+      for (const branch of branches) {
+        console.log(`checking out ${repo.name}/${branch.name}...`);
+        if (!DRY) await git.checkout(branch.name);
+        console.log(`pulling ${repo.name}/${branch.name}...`);
+        if (!DRY) await git.pull();
+      }
+    } catch (e) {
+      // over write updated_at if not successfully finished.
+      if (e.config && e.response) {
+        console.error(`${e.config.method} ${e.config.url} : ${e.response.status} ${e.response.statusText}`)
+      } else {
+        console.error(e.message);
+      }
+      repo.updated_at = prev ? prev.updated_at : null;
+    } finally {
+      console.groupEnd(); // end grouping
+      n += 1;
+    }
+  }
   if (!DRY) saveReposInfo(reposFilename, repos);
 }
 
-async function backup(repo, prevRepos) {
-  if (!isFileExist(`repos/${repo.name}`)) {
-    if (!DRY) await git.cwd(path.join(process.cwd(), 'repos'));
-    console.log(`cloning ${repo.name}...`);
-    if (!DRY) await git.silent(true).clone(repo.clone_url);
-  }
-  const updatedAt = new Date(repo.updated_at);
-  const prev = prevRepos.find(x => x.id === repo.id);
-  try {
-    // check if repo is updated or not
-    if (!FORCE && prev && updatedAt <= new Date(prev.updated_at)) {
-      console.log(`GitHub repo updated at ${repo.updated_at} : Not updated.`);
-      return;
-    }
-    const branches = await getBranchesFromGitHub(env.GITHUB_TYPE, env.GITHUB_OWNER, repo.name);
-    if (!DRY) {
-      await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
-      await git.fetch();
-    }
-    for (const branch of branches) {
-      console.log(`checking out ${repo.name}/${branch.name}...`);
-      if (!DRY) await git.checkout(branch.name);
-      console.log(`pulling ${repo.name}/${branch.name}...`);
-      if (!DRY) await git.pull();
-    }
-  } catch (e) {
-    // over write updated_at if not successfully finished.
-    if (e.config && e.response) {
-      console.error(`${e.config.method} ${e.config.url} : ${e.response.status} ${e.response.statusText}`)
-    } else {
-      console.error(e.message);
-    }
-    repo.updated_at = prev ? prev.updated_at : null;
-  }
-}
 (async () => {
   try {
     await checkEnv();
