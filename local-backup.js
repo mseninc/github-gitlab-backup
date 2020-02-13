@@ -40,7 +40,7 @@ function checkEnv() {
  * Starts to backup
  */
 async function startBackup() {
-  const reposFilename = `repos/repos_${env.GITHUB_OWNER}.json`;
+  const reposFilename = `${process.env.PWD}/repos/repos_${env.GITHUB_OWNER}.json`;
   const prevRepos = await loadReposInfo(reposFilename);
 
   console.log('Collecting GitHub repo informations...');
@@ -51,13 +51,25 @@ async function startBackup() {
   }
   console.log(`${repos.length} repositories found.`);
   let n = 0;
+  const execSync = require('child_process').execSync;
   for (const repo of repos) {
+    process.chdir(process.env.PWD);
+    if (!DRY) process.chdir('repos');
     console.group(n + 1, repo.name); // start grouping
-    if (!isFileExist(`repos/${repo.name}`)) {
-      if (!DRY) await git.cwd(path.join(process.cwd(), 'repos'));
+    if (!isFileExist(repo.name)) {
       console.log(`cloning ${repo.name}...`);
-      if (!DRY) await git.silent(true).clone(repo.clone_url);
+      if (!DRY) {
+        execSync(`git clone ${repo.clone_url}`, (err, stdout, stderr) => {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          console.log(stdout);
+          console.log(stderr);
+        })
+      }
     }
+    if (!DRY) process.chdir(repo.name);
     const updatedAt = new Date(repo.updated_at);
     const prev = prevRepos.find(x => x.id === repo.id);
     try {
@@ -68,15 +80,38 @@ async function startBackup() {
       }
       const branches = await getBranchesFromGitHub(env.GITHUB_TYPE, env.GITHUB_OWNER, repo.name);
       if (!DRY) {
-        await git.cwd(path.join(process.cwd(), `repos/${repo.name}`));
-        if (!await git.checkIsRepo()) throw new Error(`${repo.name} is not git a repository...`);
-        await git.fetch();
+        execSync('git fetch', (err, stdout, stderr) => {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          console.log(stdout);
+          console.log(stderr);
+        });
       }
       for (const branch of branches) {
         console.log(`checking out ${repo.name}/${branch.name}...`);
-        if (!DRY) await git.checkout(branch.name);
+        if (!DRY) {
+          execSync(`git checkout ${branch.name}`, (err, stdout, stderr) => {
+            if (err) {
+              console.error(err);
+              return;
+            }
+            console.log(stdout);
+            console.log(stderr);
+          });
+        }
         console.log(`pulling ${repo.name}/${branch.name}...`);
-        if (!DRY) await git.pull();
+        if (!DRY) {
+          execSync(`git pull`, (err, stdout, stderr) => {
+            if (err) {
+              console.error(err);
+              return;
+            }
+            console.log(stdout);
+            console.log(stderr);
+          });
+        }
       }
     } catch (e) {
       // over write updated_at if not successfully finished.

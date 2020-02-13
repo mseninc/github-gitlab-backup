@@ -35,16 +35,6 @@ function loadReposInfo(filename) {
 }
 
 /**
- * Add authentication information in the URL
- * @param {String} url URL
- * @param {String} user User name
- * @param {String} pass Password
- */
-function authUrl(url, user, pass) {
-  return url.replace(/^(https:\/\/)(.+)$/, `$1${user}:${pass}@$2`);
-}
-
-/**
  * Saves the current information of the GitHub repos.
  * @param {String} filename File name
  * @param {Object} repos Repos information
@@ -74,7 +64,7 @@ async function getGithubReposPage(url) {
           id,
           name,
           updated_at,
-          clone_url: authUrl(clone_url, env.GITHUB_USER, env.GITHUB_TOKEN),
+          clone_url,
       }))
     ) || null;
   return {
