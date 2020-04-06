@@ -14,6 +14,7 @@ const {
   getBranchesFromGitHub,
   isFileExist,
 } = require('./lib');
+const PWD = path.resolve(process.cwd());
 
 // Processing modes
 const DRY = process.argv.includes('--dry');
@@ -40,7 +41,7 @@ function checkEnv() {
  * Starts to backup
  */
 async function startBackup() {
-  const reposFilename = `${process.env.PWD}/repos/repos_${env.GITHUB_OWNER}.json`;
+  const reposFilename = `${PWD}/repos/repos_${env.GITHUB_OWNER}.json`;
   const prevRepos = await loadReposInfo(reposFilename);
 
   console.log('Collecting GitHub repo informations...');
@@ -53,7 +54,7 @@ async function startBackup() {
   let n = 0;
   const execSync = require('child_process').execSync;
   for (const repo of repos) {
-    process.chdir(process.env.PWD);
+    process.chdir(PWD);
     if (!DRY) process.chdir('repos');
     console.group(n + 1, repo.name); // start grouping
     if (!isFileExist(repo.name)) {
