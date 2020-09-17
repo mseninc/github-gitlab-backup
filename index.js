@@ -78,6 +78,7 @@ async function startBackup() {
           continue;
         }
         console.log(`Old project deleted. (id: ${project.id})`);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
       // start to imoport
       console.log(`Queueing import GitHub repo to GitLab project...`);
