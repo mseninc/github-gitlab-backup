@@ -101,7 +101,7 @@ async function startBackup() {
 
 (async () => {
   try {
-    await checkEnv();
+    checkEnv();
     await startBackup();
   } catch (e) {
     // unhandled exception
