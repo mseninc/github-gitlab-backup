@@ -12,6 +12,7 @@ const {
 // Processing modes
 const DRY = process.argv.includes('--dry');
 const FORCE = process.argv.includes('--force');
+const CLEAN = process.argv.includes('--clean');
 
 /**
  * Checks if .env is properly set.
@@ -38,7 +39,7 @@ function checkEnv() {
  */
 async function startBackup() {
   const reposFilename = `repos_${env.GITHUB_OWNER}.json`;
-  const prevRepos = await loadReposInfo(reposFilename);
+  const prevRepos = CLEAN ? [] : await loadReposInfo(reposFilename);
 
   console.log('Collecting GitHub repo informations...');
   const repos = await getGithubRepos(env.GITHUB_TYPE, env.GITHUB_OWNER);
