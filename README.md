@@ -37,6 +37,14 @@ is as same as below.
 node index.js
 ```
 
+#### clean mode
+
+`--clean` mode will ignore the GitHub repository's previous state.
+
+```bash
+node index.js --clean
+```
+
 #### force mode
 
 `--force` mode will ignore the previous timestamp to backup all repos forcibly.

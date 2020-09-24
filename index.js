@@ -12,6 +12,7 @@ const {
 // Processing modes
 const DRY = process.argv.includes('--dry');
 const FORCE = process.argv.includes('--force');
+const CLEAN = process.argv.includes('--clean');
 
 /**
  * Checks if .env is properly set.
@@ -38,7 +39,7 @@ function checkEnv() {
  */
 async function startBackup() {
   const reposFilename = `repos_${env.GITHUB_OWNER}.json`;
-  const prevRepos = await loadReposInfo(reposFilename);
+  const prevRepos = CLEAN ? [] : await loadReposInfo(reposFilename);
 
   console.log('Collecting GitHub repo informations...');
   const repos = await getGithubRepos(env.GITHUB_TYPE, env.GITHUB_OWNER);
@@ -48,6 +49,7 @@ async function startBackup() {
   }
   console.log(`${repos.length} repositories found.`);
   let n = 0;
+  let errorCount = 0;
   for (const repo of repos) {
     console.group(n + 1, repo.name); // start grouping
     const updatedAt = new Date(repo.updated_at);
@@ -75,14 +77,17 @@ async function startBackup() {
           if (!DRY) await deleteGitlabProject(project.id);
         } catch (error) {
           console.error(`Failed to delete project. (id: ${project.id})`);
+          errorCount++;
           continue;
         }
         console.log(`Old project deleted. (id: ${project.id})`);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
       // start to imoport
       console.log(`Queueing import GitHub repo to GitLab project...`);
       if (!DRY) await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
     } catch (e) {
+      errorCount++;
       // over write updated_at if not successfully finished.
       if (e.config && e.response) {
         console.error(`${e.config.method} ${e.config.url} : ${e.response.status} ${e.response.statusText}`)
@@ -96,12 +101,16 @@ async function startBackup() {
     }
   }
   if (!DRY) saveReposInfo(reposFilename, repos);
+  return errorCount++;
 }
 
 (async () => {
   try {
-    await checkEnv();
-    await startBackup();
+    checkEnv();
+    const errorCount = await startBackup();
+    if (errorCount > 0) {
+      process.exit(1);
+    }
   } catch (e) {
     // unhandled exception
     console.error(e);
