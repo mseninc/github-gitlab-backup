@@ -52,12 +52,12 @@ async function startBackup() {
   let errorCount = 0;
   for (const repo of repos) {
     console.group(n + 1, repo.name); // start grouping
-    const updatedAt = new Date(repo.updated_at);
+    const pushedAt = new Date(repo.pushed_at);
     const prev = prevRepos.find(x => x.id === repo.id);
     try {
       // check if repo is updated or not
-      if (!FORCE && prev && updatedAt <= new Date(prev.updated_at)) {
-        console.log(`GitHub repo updated at ${repo.updated_at} : Not updated.`);
+      if (!FORCE && prev && pushedAt <= new Date(prev.pushed_at || prev.updated_at)) {
+        console.log(`GitHub repo pushed at ${repo.pushed_at} : Not updated.`);
         continue;
       }
       console.log(`Finding same name projects in GitLab...`);
@@ -65,7 +65,7 @@ async function startBackup() {
       if (project) {
         // project already exists
         const lastActivityAt = new Date(project.last_activity_at);
-        if (!FORCE && updatedAt <= lastActivityAt) {
+        if (!FORCE && pushedAt <= lastActivityAt) {
           console.log(`GitHub repo updated at ${repo.updated_at}, GitLab last activity at ${format(lastActivityAt)}.`);
           repo.updated_at = format(lastActivityAt);
           console.log(`Not updated after GitLab last activity.`);
@@ -88,13 +88,13 @@ async function startBackup() {
       if (!DRY) await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
     } catch (e) {
       errorCount++;
-      // over write updated_at if not successfully finished.
+      // over write pushed_at if not successfully finished.
       if (e.config && e.response) {
         console.error(`${e.config.method} ${e.config.url} : ${e.response.status} ${e.response.statusText}`)
       } else {
         console.error(e.message);
       }
-      repo.updated_at = prev ? prev.updated_at : null;
+      repo.pushed_at = prev ? (prev.pushed_at || prev.updated_at) : null;
     } finally {
       console.groupEnd(); // end grouping
       n += 1;
