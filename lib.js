@@ -55,7 +55,7 @@ async function getGithubReposPage(url) {
   }
   const data = (result.data
       && result.data.length > 0
-      && result.data.map(({ id, name, updated_at }) => ({ id, name, updated_at }))
+      && result.data.map(({ id, name, updated_at, pushed_at }) => ({ id, name, updated_at, pushed_at }))
     ) || null;
   return {
     next,
