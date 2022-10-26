@@ -66,7 +66,7 @@ async function startBackup() {
         // project already exists
         const lastActivityAt = new Date(project.last_activity_at);
         if (!FORCE && pushedAt <= lastActivityAt) {
-          console.log(`GitHub repo updated at ${repo.updated_at}, GitLab last activity at ${format(lastActivityAt)}.`);
+          console.log(`GitHub repo pushed at ${repo.pushed_at}, GitLab last activity at ${format(lastActivityAt)}.`);
           repo.updated_at = format(lastActivityAt);
           console.log(`Not updated after GitLab last activity.`);
           continue;
