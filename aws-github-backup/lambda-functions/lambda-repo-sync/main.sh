@@ -101,11 +101,12 @@ function handler() {
   echo "Total size: ${TOTAL_SIZE}" 1>&2;
 
   BODY="{\"owner\": \"${GITHUB_OWNER}\", \"repo\": \"${GITHUB_REPO}\", \"directory\": \"${DIR}\", \"file_count\": ${FILE_COUNT}, \"total_size\": ${TOTAL_SIZE}, \"action\": \"${ACTION}\"}"
-  echo "Response: ${BODY}" 1>&2;
+  echo "Response body: ${BODY}" 1>&2;
 
   echo "----- /Result -----" 1>&2;
 
   RESPONSE=$(echo "{ \"statusCode\": 200, \"body\": ${BODY}}" | jq -c .)
   echo $RESPONSE
+
   echo "----- End of handler -----" 1>&2;
 }

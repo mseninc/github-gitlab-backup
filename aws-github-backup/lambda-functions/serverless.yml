@@ -35,6 +35,9 @@ provider:
 
   ecr:
     images:
+      lambda-ls-repos:
+        path: ./lambda-ls-repos
+        platform: linux/amd64
       lambda-repo-sync:
         path: ./lambda-repo-sync
         platform: linux/amd64
