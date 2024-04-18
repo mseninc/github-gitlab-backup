@@ -1,0 +1,20 @@
+{
+  "name": "serverless",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "format": "prettier --write ./**/*.{js,jsx,ts,tsx}"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "serverless-plugin-typescript": "^2.1.5"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "serverless": "^3.38.0",
+    "serverless-step-functions": "^3.21.0"
+  }
+}

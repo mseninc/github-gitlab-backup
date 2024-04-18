@@ -1,0 +1,268 @@
+Resources:
+
+  ##############################################################
+  # VPC
+  ##############################################################
+
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: ${self:custom.cidr.vpc}
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: ${self:service}
+
+  ##############################################################
+  # サブネット
+  ##############################################################
+
+  MyPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: ${self:custom.cidr.publicSubnet1}
+      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "a" ] ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Public1
+
+  MyPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: ${self:custom.cidr.publicSubnet2}
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "c" ] ]
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Public2
+
+  MyPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: ${self:custom.cidr.privateSubnet1}
+      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "a" ] ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Private1
+
+  MyPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: ${self:custom.cidr.privateSubnet2}
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "c" ] ]
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Private2
+
+  ##############################################################
+  # インターネットゲートウェイ
+  ##############################################################
+
+  MyInternetGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref "AWS::StackName"
+
+  MyVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MyInternetGW
+      VpcId: !Ref MyVPC
+
+  ##############################################################
+  # ルートテーブル（パブリックサブネット）
+  ##############################################################
+
+  MyPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Public
+
+  MyPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGW
+      RouteTableId: !Ref MyPublicRouteTable
+
+  MyPublicSubnetRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPublicRouteTable
+        SubnetId: !Ref MyPublicSubnet1
+
+  MyPublicSubnetRouteTableAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPublicRouteTable
+        SubnetId: !Ref MyPublicSubnet2
+
+  ##############################################################
+  # ルートテーブル（プライベートサブネット）
+  ##############################################################
+
+  MyPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Private
+
+  MyPrivateSubnetRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPrivateRouteTable
+        SubnetId: !Ref MyPrivateSubnet1
+
+  MyPrivateSubnetRouteTableAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPrivateRouteTable
+        SubnetId: !Ref MyPrivateSubnet2
+
+  ##############################################################
+  # NAT ゲートウェイ
+  ##############################################################
+
+  MyNATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  MyNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt MyNATGatewayEIP.AllocationId
+      SubnetId: !Ref MyPublicSubnet1
+      Tags:
+      - Key: Name
+        Value: !Ref "AWS::StackName"
+
+  MyNATGatewayRoute:
+    DependsOn: MyNATGateway
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref MyNATGateway
+
+  ##############################################################
+  # EFS
+  ##############################################################
+
+  MyLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda Access for EFS
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Lambda
+
+  MyEFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EFS Allowed Ports
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt MyLambdaSecurityGroup.GroupId
+          Description: from Lambda
+      Tags:
+        - Key: Name
+          Value: ${self:service}-Storage
+
+  MyEFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      FileSystemTags:
+        - Key: Name
+          Value: ${self:service}-Storage
+      BackupPolicy:
+        Status: ENABLED
+      Encrypted: true
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_1_DAY
+      PerformanceMode: generalPurpose
+
+  MyEFSMountTarget:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref MyEFSFileSystem
+      SecurityGroups:
+        - !Ref MyEFSSecurityGroup
+      SubnetId: !Ref MyPrivateSubnet1
+    DependsOn: MyEFSFileSystem
+
+  MyEFSAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref MyEFSFileSystem
+      PosixUser:
+        Uid: 1001
+        Gid: 1001
+      RootDirectory:
+        Path: /efsdata
+        CreationInfo:
+          OwnerGid: 1001
+          OwnerUid: 1001
+          Permissions: 755
+      AccessPointTags:
+        - Key: Name
+          Value: ${self:service}-Storage
+    DependsOn: MyEFSFileSystem
+
+##################################################
+# 出力 (クロススタック リファレンス用)
+##################################################
+
+Outputs:
+  VpcId:
+    Value: !Ref MyVPC
+    Export:
+      Name: ${self:service}-VpcId
+  PublicSubnet1Id:
+    Value: !Ref MyPublicSubnet1
+    Export:
+      Name: ${self:service}-PublicSubnet1Id
+  PublicSubnet2Id:
+    Value: !Ref MyPublicSubnet2
+    Export:
+      Name: ${self:service}-PublicSubnet2Id
+  PrivateSubnet1Id:
+    Value: !Ref MyPrivateSubnet1
+    Export:
+      Name: ${self:service}-PrivateSubnet1Id
+  PrivateSubnet2Id:
+    Value: !Ref MyPrivateSubnet2
+    Export:
+      Name: ${self:service}-PrivateSubnet2Id
+  LambdaSecurityGroupId:
+    Value: !GetAtt MyLambdaSecurityGroup.GroupId
+    Export:
+      Name: ${self:service}-LambdaSecurityGroupId
+  EFSFileSystemId:
+    Value: !Ref MyEFSFileSystem
+    Export:
+      Name: ${self:service}-EFSFileSystemId
+  EFSAccessPointArn:
+    Value: !GetAtt MyEFSAccessPoint.Arn
+    Export:
+      Name: ${self:service}-EFSAccessPointArn
