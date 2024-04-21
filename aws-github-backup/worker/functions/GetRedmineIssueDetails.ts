@@ -1,0 +1,1 @@
+../../worker/functions/GetRedmineIssueDetails.ts

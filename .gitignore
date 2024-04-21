@@ -5,3 +5,4 @@ node_modules/
 repos_*.json
 npm-debug*
 .serverless
+.build/

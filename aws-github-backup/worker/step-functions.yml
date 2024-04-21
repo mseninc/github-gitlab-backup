@@ -1,0 +1,102 @@
+stateMachines:
+  ReportWorker:
+    name: ${self:custom.stateMachineName.ReportWorker}
+    events:
+      - schedule: cron(0 0 ? * MON-FRI *) # JST AM 9:00 (Monday - Friday)
+    loggingConfig:
+      level: ERROR
+      includeExecutionData: true
+      destinations:
+        - !GetAtt ReportWorkerLogGroup.Arn
+    role: !GetAtt StateMachineIAMRole.Arn
+    definition:
+      StartAt: GetRedmineIssueNumbers
+      States:
+
+        # チケット番号一覧取得
+        GetRedmineIssueNumbers:
+          Type: Task
+          Resource: "arn:aws:states:::http:invoke"
+          Parameters:
+            Method: "GET"
+            Headers:
+              Authorization: "Bearer ${param:gitToken}"
+              accept: "application/vnd.github+json"
+            ApiEndpoint: "https://api.github.com/orgs/${param:owner}/repos"
+            QueryString:
+              sort: updated
+              direction: desc
+          Catch:
+            - ErrorEquals:
+              - "States.ALL"
+              Next: OnRedmineAPIError
+          ResultPath: $.issueNumbers
+          Next: GetRedmineAllIssueDetails
+
+
+        # チケット番号一覧取得
+        GetRedmineIssueNumbers:
+          Type: Task
+          Resource: !GetAtt GetRedmineIssueNumbersLambdaFunction.Arn
+          Catch:
+            - ErrorEquals:
+              - "States.ALL"
+              Next: OnRedmineAPIError
+          ResultPath: $.issueNumbers
+          Next: GetRedmineAllIssueDetails
+
+        # 全チケット詳細取得
+        GetRedmineAllIssueDetails:
+          Type: Map
+          ItemsPath: $.issueNumbers
+          MaxConcurrency: 1 # 直列実行
+          ItemSelector:
+            issueId.$: $$.Map.Item.Value # 各要素
+          ItemProcessor: # イテレータ
+            StartAt: GetRedmineIssueDetails
+            States:
+              # チケット詳細取得
+              GetRedmineIssueDetails:
+                Type: Task
+                Resource: !GetAtt GetRedmineIssueDetailsLambdaFunction.Arn
+                Parameters:
+                  issueId.$: $.issueId
+                ResultPath: $.issueDetails
+                Next: FilterTargetIssue
+              # 未返信または更新されていないチケットを抽出 (対象外は null になる)
+              FilterTargetIssue:
+                Type: Task
+                Resource: !GetAtt FilterTargetIssueLambdaFunction.Arn
+                Parameters:
+                  issue.$: $.issueDetails
+                  filterCondition: ${param:filterCondition}
+                End: true
+          ResultPath: $.targetIssues
+          Next: MakeReportPost
+
+        # Slack レポート送信用文字列作成
+        MakeReportPost:
+          Type: Task
+          Resource: !GetAtt MakeReportPostLambdaFunction.Arn
+          Parameters:
+            items.$: $.targetIssues
+          ResultPath: $.slackBlocks
+          Next: PostToSlack
+
+        # Slack に投稿
+        PostToSlack:
+          Type: Task
+          Resource: !GetAtt PostToSlackLambdaFunction.Arn
+          Parameters:
+            blocks.$: $.slackBlocks
+          Next: Succeed
+
+        # 正常終了
+        Succeed:
+          Type: Succeed
+
+        # エラー
+        OnRedmineAPIError:
+          Type: Fail
+          Cause: "Failed to fetch data from Redmine API"
+          Error: "Redmine API Error"
