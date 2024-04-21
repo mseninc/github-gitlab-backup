@@ -1,5 +1,4 @@
 Resources:
-
   ##############################################################
   # VPC
   ##############################################################
@@ -24,44 +23,44 @@ Resources:
     Properties:
       VpcId: !Ref MyVPC
       CidrBlock: ${self:custom.cidr.publicSubnet1}
-      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "a" ] ]
+      AvailabilityZone: !Join ["", [!Ref "AWS::Region", "a"]]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: ${self:service}-Public1
 
-  MyPublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref MyVPC
-      CidrBlock: ${self:custom.cidr.publicSubnet2}
-      MapPublicIpOnLaunch: false
-      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "c" ] ]
-      Tags:
-        - Key: Name
-          Value: ${self:service}-Public2
+  # MyPublicSubnet2:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     VpcId: !Ref MyVPC
+  #     CidrBlock: ${self:custom.cidr.publicSubnet2}
+  #     MapPublicIpOnLaunch: false
+  #     AvailabilityZone: !Join ["", [!Ref "AWS::Region", "c"]]
+  #     Tags:
+  #       - Key: Name
+  #         Value: ${self:service}-Public2
 
   MyPrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MyVPC
       CidrBlock: ${self:custom.cidr.privateSubnet1}
-      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "a" ] ]
+      AvailabilityZone: !Join ["", [!Ref "AWS::Region", "a"]]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: ${self:service}-Private1
 
-  MyPrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref MyVPC
-      CidrBlock: ${self:custom.cidr.privateSubnet2}
-      MapPublicIpOnLaunch: false
-      AvailabilityZone: !Join [ "", [ !Ref "AWS::Region", "c" ] ]
-      Tags:
-        - Key: Name
-          Value: ${self:service}-Private2
+  # MyPrivateSubnet2:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     VpcId: !Ref MyVPC
+  #     CidrBlock: ${self:custom.cidr.privateSubnet2}
+  #     MapPublicIpOnLaunch: false
+  #     AvailabilityZone: !Join ["", [!Ref "AWS::Region", "c"]]
+  #     Tags:
+  #       - Key: Name
+  #         Value: ${self:service}-Private2
 
   ##############################################################
   # インターネットゲートウェイ
@@ -100,16 +99,16 @@ Resources:
       RouteTableId: !Ref MyPublicRouteTable
 
   MyPublicSubnetRouteTableAssociation1:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-        RouteTableId: !Ref MyPublicRouteTable
-        SubnetId: !Ref MyPublicSubnet1
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      SubnetId: !Ref MyPublicSubnet1
 
-  MyPublicSubnetRouteTableAssociation2:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-        RouteTableId: !Ref MyPublicRouteTable
-        SubnetId: !Ref MyPublicSubnet2
+  # MyPublicSubnetRouteTableAssociation2:
+  #   Type: AWS::EC2::SubnetRouteTableAssociation
+  #   Properties:
+  #     RouteTableId: !Ref MyPublicRouteTable
+  #     SubnetId: !Ref MyPublicSubnet2
 
   ##############################################################
   # ルートテーブル（プライベートサブネット）
@@ -124,42 +123,129 @@ Resources:
           Value: ${self:service}-Private
 
   MyPrivateSubnetRouteTableAssociation1:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-        RouteTableId: !Ref MyPrivateRouteTable
-        SubnetId: !Ref MyPrivateSubnet1
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      SubnetId: !Ref MyPrivateSubnet1
 
-  MyPrivateSubnetRouteTableAssociation2:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-        RouteTableId: !Ref MyPrivateRouteTable
-        SubnetId: !Ref MyPrivateSubnet2
+  # MyPrivateSubnetRouteTableAssociation2:
+  #   Type: AWS::EC2::SubnetRouteTableAssociation
+  #   Properties:
+  #     RouteTableId: !Ref MyPrivateRouteTable
+  #     SubnetId: !Ref MyPrivateSubnet2
 
   ##############################################################
-  # NAT ゲートウェイ
+  # NAT インスタンス
   ##############################################################
 
-  MyNATGatewayEIP:
+  MyNATInstanceEIP:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
 
-  MyNATGateway:
-    Type: AWS::EC2::NatGateway
+  # NATインスタンス用のセキュリティグループ
+  # https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/VPC_NAT_Instance.html#NATSG
+  MyNATInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      AllocationId: !GetAtt MyNATGatewayEIP.AllocationId
-      SubnetId: !Ref MyPublicSubnet1
+      GroupName: !Sub ${self:service}-sg-nat-instance
+      GroupDescription: Security group for NAT instance
+      VpcId: !Ref MyVPC
       Tags:
-      - Key: Name
-        Value: !Ref "AWS::StackName"
+        - Key: Name
+          Value: !Sub ${self:service}-sg-nat-instance
+      SecurityGroupIngress:
+        - CidrIp: ${self:custom.cidr.vpc}
+          Description: HTTP
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIp: ${self:custom.cidr.vpc}
+          Description: HTTPS
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  MyNATInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${self:service}-role-nat-instance
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  MyNATInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref MyNATInstanceRole
+      InstanceProfileName: !Sub ${self:service}-profile-nat-instance
+
+  MyNATInstanceKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub ${self:service}-ec2-nat-instance
+
+  MyNATInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ${self:custom.ami.al2023}
+      InstanceType: t4g.nano
+      IamInstanceProfile: !Ref MyNATInstanceProfile
+      # 送信元/送信先チェックを無効にする
+      SourceDestCheck: false
+      KeyName: !Ref MyNATInstanceKeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: "0"
+          GroupSet:
+            - !Ref MyNATInstanceSecurityGroup
+          DeleteOnTermination: true
+          SubnetId: !Ref MyPublicSubnet1
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          # パッケージの更新
+          yum -y upgrade
+
+          yum -y install iptables-services
+          sysctl -w net.ipv4.ip_forward=1
+
+          # 主要なネットワークインターフェースを動的に取得
+          PRIMARY_INTERFACE=$(ip -o -4 route show to default | awk '{print $5}')
+
+          /sbin/iptables -t nat -A POSTROUTING -o $PRIMARY_INTERFACE -j MASQUERADE
+          service iptables save
+      Tags:
+        - Key: Name
+          Value: !Sub ${self:service}-ec2-nat-instance
 
   MyNATGatewayRoute:
-    DependsOn: MyNATGateway
+    DependsOn: MyNATInstance
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref MyPrivateRouteTable
-      DestinationCidrBlock: '0.0.0.0/0'
-      NatGatewayId: !Ref MyNATGateway
+      DestinationCidrBlock: "0.0.0.0/0"
+      InstanceId: !Ref MyNATInstance
 
   ##############################################################
   # EFS
@@ -242,18 +328,18 @@ Outputs:
     Value: !Ref MyPublicSubnet1
     Export:
       Name: ${self:service}-PublicSubnet1Id
-  PublicSubnet2Id:
-    Value: !Ref MyPublicSubnet2
-    Export:
-      Name: ${self:service}-PublicSubnet2Id
+  # PublicSubnet2Id:
+  #   Value: !Ref MyPublicSubnet2
+  #   Export:
+  #     Name: ${self:service}-PublicSubnet2Id
   PrivateSubnet1Id:
     Value: !Ref MyPrivateSubnet1
     Export:
       Name: ${self:service}-PrivateSubnet1Id
-  PrivateSubnet2Id:
-    Value: !Ref MyPrivateSubnet2
-    Export:
-      Name: ${self:service}-PrivateSubnet2Id
+  # PrivateSubnet2Id:
+  #   Value: !Ref MyPrivateSubnet2
+  #   Export:
+  #     Name: ${self:service}-PrivateSubnet2Id
   LambdaSecurityGroupId:
     Value: !GetAtt MyLambdaSecurityGroup.GroupId
     Export:

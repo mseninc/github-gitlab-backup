@@ -1,9 +1,5 @@
 service: github-backup
-frameworkVersion: '3'
-
-# plugins:
-#   - serverless-plugin-typescript
-#   - serverless-step-functions
+frameworkVersion: "3"
 
 provider:
   name: aws
@@ -19,20 +15,6 @@ provider:
     APP: ${self:service}
     STAGE: ${sls:stage}
 
-  # iam:
-  #   role:
-  #     statements:
-  #       - Effect: 'Allow' # Systems Manager - Parameter Store
-  #         Action:
-  #           - 'ssm:GetParameter'
-  #         Resource:
-  #           - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/git-token
-  #       - Effect: 'Allow' # KMS - Decrypt (for encrypted SSM parameters)
-  #         Action:
-  #           - 'kms:Decrypt'
-  #         Resource:
-  #           - arn:aws:kms:ap-northeast-1:851725479915:key/16889861-08ea-4db8-beed-374d635ae972
-
   ecr:
     images:
       lambda-ls-repos:
@@ -42,21 +24,10 @@ provider:
         path: ./lambda-repo-sync
         platform: linux/amd64
 
-# package:
-#   individually: true
-#   patterns:
-#     - '!**'
-
 custom:
   infraStack: ${self:service}-infra
-#   stateMachineName:
-#     ReportWorker: ${self:custom.prefix}-report-worker
-#   issuesTableRegion: ${aws:region}
-#   redmineApiKeyParameterStoreName: redmine-api-key
 
 # params:
 #   default: ${file(./params.${sls:stage}.yml)}
 
 functions: ${file(./functions.yml)}
-
-# stepFunctions: ${file(./step-functions.yml)}

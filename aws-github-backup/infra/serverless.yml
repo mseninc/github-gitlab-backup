@@ -1,5 +1,5 @@
 service: github-backup-infra
-frameworkVersion: '3'
+frameworkVersion: "3"
 
 provider:
   name: aws
@@ -26,6 +26,7 @@ custom:
     publicSubnet2: 172.30.16.0/20
     privateSubnet1: 172.30.32.0/20
     privateSubnet2: 172.30.48.0/20
+  ami:
+    al2023: ${ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}
 
-resources:
-  ${file(./resources.yml)}
+resources: ${file(./resources.yml)}

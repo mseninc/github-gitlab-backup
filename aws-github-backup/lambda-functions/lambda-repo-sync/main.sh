@@ -34,11 +34,11 @@ function handler() {
   FORCE_CLONE=$(echo $EVENT_DATA | jq -r '.forceClone // empty')
 
   if [ -z "${GITHUB_OWNER}" ]; then
-    echo "{ \"statusCode\": 400, \"error\": \"owner is required.\" }"
+    echo "{ \"statusCode\": 400, \"body\": { \"error\": \"owner is required.\" } }"
     exit 0;
   fi
   if [ -z "${GITHUB_REPO}" ]; then
-    echo "{ \"statusCode\": 400, \"error\": \"repo is required.\" }"
+    echo "{ \"statusCode\": 400, \"body\": { \"error\": \"repo is required.\" } }"
     exit 0;
   fi
 
