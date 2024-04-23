@@ -135,130 +135,17 @@ Resources:
   #     SubnetId: !Ref MyPrivateSubnet2
 
   ##############################################################
-  # NAT インスタンス
-  ##############################################################
-
-  MyNATInstanceEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-
-  # NATインスタンス用のセキュリティグループ
-  # https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/VPC_NAT_Instance.html#NATSG
-  MyNATInstanceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub ${self:service}-sg-nat-instance
-      GroupDescription: Security group for NAT instance
-      VpcId: !Ref MyVPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${self:service}-sg-nat-instance
-      SecurityGroupIngress:
-        - CidrIp: ${self:custom.cidr.vpc}
-          Description: HTTP
-          FromPort: 80
-          IpProtocol: tcp
-          ToPort: 80
-        - CidrIp: ${self:custom.cidr.vpc}
-          Description: HTTPS
-          FromPort: 443
-          IpProtocol: tcp
-          ToPort: 443
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-
-  MyNATInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ${self:service}-role-nat-instance
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-
-  MyNATInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Path: /
-      Roles:
-        - !Ref MyNATInstanceRole
-      InstanceProfileName: !Sub ${self:service}-profile-nat-instance
-
-  MyNATInstanceKeyPair:
-    Type: AWS::EC2::KeyPair
-    Properties:
-      KeyName: !Sub ${self:service}-ec2-nat-instance
-
-  MyNATInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: ${self:custom.ami.al2023}
-      InstanceType: t4g.nano
-      IamInstanceProfile: !Ref MyNATInstanceProfile
-      # 送信元/送信先チェックを無効にする
-      SourceDestCheck: false
-      KeyName: !Ref MyNATInstanceKeyPair
-      NetworkInterfaces:
-        - AssociatePublicIpAddress: true
-          DeviceIndex: "0"
-          GroupSet:
-            - !Ref MyNATInstanceSecurityGroup
-          DeleteOnTermination: true
-          SubnetId: !Ref MyPublicSubnet1
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          # パッケージの更新
-          yum -y upgrade
-
-          yum -y install iptables-services
-          sysctl -w net.ipv4.ip_forward=1
-
-          # 主要なネットワークインターフェースを動的に取得
-          PRIMARY_INTERFACE=$(ip -o -4 route show to default | awk '{print $5}')
-
-          /sbin/iptables -t nat -A POSTROUTING -o $PRIMARY_INTERFACE -j MASQUERADE
-          service iptables save
-      Tags:
-        - Key: Name
-          Value: !Sub ${self:service}-ec2-nat-instance
-
-  MyNATGatewayRoute:
-    DependsOn: MyNATInstance
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref MyPrivateRouteTable
-      DestinationCidrBlock: "0.0.0.0/0"
-      InstanceId: !Ref MyNATInstance
-
-  ##############################################################
   # EFS
   ##############################################################
 
-  MyLambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Lambda Access for EFS
-      VpcId: !Ref MyVPC
-      Tags:
-        - Key: Name
-          Value: ${self:service}-Lambda
+  # MyLambdaSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Lambda Access for EFS
+  #     VpcId: !Ref MyVPC
+  #     Tags:
+  #       - Key: Name
+  #         Value: ${self:service}-lambda
 
   MyEFSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -269,18 +156,19 @@ Resources:
         - IpProtocol: tcp
           FromPort: 2049
           ToPort: 2049
-          SourceSecurityGroupId: !GetAtt MyLambdaSecurityGroup.GroupId
-          Description: from Lambda
+          CidrIp: ${self:custom.cidr.vpc}
+          # SourceSecurityGroupId: !GetAtt MyLambdaSecurityGroup.GroupId # Lambda からのアクセスの場合
+          Description: private access
       Tags:
         - Key: Name
-          Value: ${self:service}-Storage
+          Value: ${self:service}-storage-sg
 
   MyEFSFileSystem:
     Type: AWS::EFS::FileSystem
     Properties:
       FileSystemTags:
         - Key: Name
-          Value: ${self:service}-Storage
+          Value: ${self:service}-storage
       BackupPolicy:
         Status: ENABLED
       Encrypted: true
@@ -302,18 +190,97 @@ Resources:
     Properties:
       FileSystemId: !Ref MyEFSFileSystem
       PosixUser:
-        Uid: 1001
-        Gid: 1001
+        Uid: 1000
+        Gid: 1000
       RootDirectory:
-        Path: /efsdata
+        Path: /data
         CreationInfo:
-          OwnerGid: 1001
-          OwnerUid: 1001
+          OwnerGid: 1000
+          OwnerUid: 1000
           Permissions: 755
       AccessPointTags:
         - Key: Name
-          Value: ${self:service}-Storage
+          Value: ${self:service}-storage
     DependsOn: MyEFSFileSystem
+
+  ##################################################
+  # 確認用 EC2
+  ##################################################
+
+  MyEC2KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: ${self:service}-ec2
+      KeyType: ed25519
+
+  MyEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Security Group
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: ${self:custom.cidr.company}
+          Description: from company
+      Tags:
+        - Key: Name
+          Value: ${self:service}-ec2-sg
+
+  MyEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ${ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2}
+      KeyName: !Ref MyEC2KeyPair
+      InstanceType: t4g.nano
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: "0"
+          SubnetId: !Ref MyPublicSubnet1
+          GroupSet:
+            - !Ref MyEC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash -xe
+            sudo yum install -y git amazon-efs-utils
+            mkdir -p ${MOUNT_POINT}
+            echo '${EFS_ID}:/ ${MOUNT_POINT} efs tls,_netdev,accesspoint=${EFS_AP_ID} 0 0' | sudo tee -a /etc/fstab
+            echo "alias mount_efs='sudo mount -t efs -o tls,accesspoint=${EFS_AP_ID} ${EFS_ID}: ${MOUNT_POINT}'" | sudo tee -a /home/ec2-user/.bashrc
+          - EFS_ID: !Ref MyEFSFileSystem
+            EFS_AP_ID: !Ref MyEFSAccessPoint
+            MOUNT_POINT: /mnt/efs
+      Tags:
+        - Key: Name
+          Value: ${self:service}-ec2
+
+  MyEC2StopInstanceRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: StopEC2Instance
+      Description: StopEC2Instance
+      ScheduleExpression: cron(0 20 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: "arn:aws:ssm:ap-northeast-1::automation-definition/AWS-StopEC2Instance:$DEFAULT"
+          Id: StopEC2Instance
+          RoleArn: !Sub ${MyAmazonSSMAutomationRole.Arn}
+          Input: !Sub '{"InstanceId":["${MyEC2}"]}'
+
+  MyAmazonSSMAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "events.amazonaws.com"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
 
 ##################################################
 # 出力 (クロススタック リファレンス用)
@@ -340,15 +307,27 @@ Outputs:
   #   Value: !Ref MyPrivateSubnet2
   #   Export:
   #     Name: ${self:service}-PrivateSubnet2Id
-  LambdaSecurityGroupId:
-    Value: !GetAtt MyLambdaSecurityGroup.GroupId
-    Export:
-      Name: ${self:service}-LambdaSecurityGroupId
+  # LambdaSecurityGroupId:
+  #   Value: !GetAtt MyLambdaSecurityGroup.GroupId
+  #   Export:
+  #     Name: ${self:service}-LambdaSecurityGroupId
   EFSFileSystemId:
     Value: !Ref MyEFSFileSystem
     Export:
       Name: ${self:service}-EFSFileSystemId
+  EFSAccessPointId:
+    Value: !Ref MyEFSAccessPoint
+    Export:
+      Name: ${self:service}-EFSAccessPointId
   EFSAccessPointArn:
     Value: !GetAtt MyEFSAccessPoint.Arn
     Export:
       Name: ${self:service}-EFSAccessPointArn
+  PublicRouteTableId:
+    Value: !Ref MyPublicRouteTable
+    Export:
+      Name: ${self:service}-PublicRouteTableId
+  PrivateRouteTableId:
+    Value: !Ref MyPrivateRouteTable
+    Export:
+      Name: ${self:service}-PrivateRouteTableId
