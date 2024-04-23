@@ -1,0 +1,27 @@
+# OrganizeSyncReport:
+#   package:
+#     patterns:
+#       - functions/lib/*.js
+#       - functions/OrganizeSyncReport.js
+#   handler: functions/OrganizeSyncReport.handler
+
+# MakeSlackReport:
+#   package:
+#     patterns:
+#       - functions/lib/*.js
+#       - functions/MakeSlackReport.js
+#   handler: functions/MakeSlackReport.handler
+
+# PostToSlack:
+#   package:
+#     patterns:
+#       - functions/lib/*.js
+#       - functions/PostToSlack.js
+#   handler: functions/PostToSlack.handler
+#   environment:
+#     SLACK_WEBHOOK_URL: ${self:custom.slackWebhookUrl}
+
+# Serverless Framework で ECR にイメージをプッシュするためのダミー関数
+DummyFunction:
+  image:
+    name: worker

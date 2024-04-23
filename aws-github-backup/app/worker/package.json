@@ -1,0 +1,21 @@
+{
+  "name": "github-backup-worker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild --bundle src/index.ts --platform=node --outfile=dist/index.js",
+    "format": "prettier --write ./**/*.{js,jsx,ts,tsx}"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@octokit/graphql": "^8.1.1"
+  },
+  "devDependencies": {
+    "@octokit/graphql-schema": "^15.10.0",
+    "@types/node": "^20.12.7",
+    "esbuild": "^0.20.2"
+  }
+}
