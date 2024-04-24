@@ -36,9 +36,9 @@ provider:
 
   ecr:
     images:
-      worker:
-        path: ./worker
-        platform: linux/x86_64
+      repo-sync:
+        path: ./repo-sync
+        platform: linux/amd64
 
 package:
   individually: true
@@ -50,7 +50,7 @@ custom:
   repoOwner: mseninc
   githubToken: ${ssm:github-token}
   slackWebhookUrl: ${ssm:slack-webhook-url}
-  workerImageName: serverless-${self:service}-${sls:stage}
+  workerImage: serverless-${self:service}-${sls:stage}:repo-sync
 
 functions: ${file(./functions.yml)}
 

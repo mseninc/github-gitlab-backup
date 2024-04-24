@@ -24,4 +24,4 @@
 # Serverless Framework で ECR にイメージをプッシュするためのダミー関数
 DummyFunction:
   image:
-    name: worker
+    name: repo-sync

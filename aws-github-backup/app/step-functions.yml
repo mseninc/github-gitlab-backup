@@ -15,7 +15,7 @@ stateMachines:
         # タスク実行
         RunWorkerTask:
           Type: Task
-          Resource: "arn:aws:states:::ecs:runTask.sync"
+          Resource: "arn:aws:states:::ecs:runTask.waitForTaskToken"
           Parameters:
             Cluster: !Ref MyECSCluster
             TaskDefinition: !Ref MyECSTaskDefinition
@@ -31,10 +31,19 @@ stateMachines:
               ContainerOverrides:
                 - Name: worker
                   Environment:
-                    - Name: "GITHUB_OWNER"
+                    - Name: GITHUB_OWNER
                       Value: ${self:custom.repoOwner}
-                    - Name: "GITHUB_TOKEN"
+                    - Name: GITHUB_REPO
+                      Value: isms-reports
+                    - Name: GITHUB_TOKEN
                       Value: ${self:custom.githubToken}
+                    - Name: TASK_TOKEN
+                      Value.$: "$$.Task.Token"
+                    - Name: WORK_DIR
+                      Value: /mnt/efs
+                    - Name: FORCE_CLONE
+                      Value: "false"
+          TimeoutSeconds: 120
           # Catch:
           #   - ErrorEquals:
           #       - "States.ALL"

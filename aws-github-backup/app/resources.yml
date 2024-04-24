@@ -107,7 +107,7 @@ Resources:
             FilesystemId: !ImportValue ${self:custom.infraStack}-EFSFileSystemId
             TransitEncryption: "ENABLED"
       ContainerDefinitions:
-        - Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${self:custom.workerImageName}:worker
+        - Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${self:custom.workerImage}
           Name: worker
           Cpu: 512
           MemoryReservation: 1024
@@ -167,6 +167,16 @@ Resources:
             Action: "sts:AssumeRole"
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AWSOpsWorksCloudWatchLogs"
+      Policies:
+        - PolicyName: ${self:service}-ECSTaskRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                Resource: "*"
 
   ##############################################################
   # VPC エンドポイント
