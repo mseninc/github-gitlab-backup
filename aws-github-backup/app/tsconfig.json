@@ -4,10 +4,12 @@
     "strictNullChecks": true,
     "sourceMap": true,
     "allowJs": true,
-    "target": "es5",
-    "outDir": ".build",
-    "moduleResolution": "node",
+    "target": "ES2015",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": ["es2015"],
-    "rootDir": "./"
+    "outDir": ".build",
+    "rootDir": "./",
+    "typeRoots": ["types"]
   }
 }

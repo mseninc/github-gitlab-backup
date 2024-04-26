@@ -1,0 +1,344 @@
+service: github-backup-step-functions
+frameworkVersion: "3"
+
+plugins:
+  - serverless-step-functions
+  - serverless-plugin-typescript
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  logRetentionInDays: 30
+  stage: dev
+  region: ap-northeast-1
+  timeout: 10
+
+  stackTags:
+    SERVICE: ${self:service}
+    APP: ${self:service}
+    STAGE: ${sls:stage}
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow" # Systems Manager - Parameter Store
+          Action:
+            - "ssm:GetParameter"
+          Resource:
+            - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${self:custom.githubTokenParameterName}
+            - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${self:custom.slackWebhookUrlParameterName}
+        - Effect: "Allow" # KMS - Decrypt (for encrypted SSM parameters)
+          Action:
+            - "kms:Decrypt"
+          Resource:
+            - arn:aws:kms:ap-northeast-1:851725479915:key/16889861-08ea-4db8-beed-374d635ae972
+
+package:
+  individually: true
+  patterns:
+    - "!**"
+
+custom:
+  baseStackName: github-backup
+  repoOwner: mseninc
+  githubTokenParameterName: github-token
+  slackWebhookUrlParameterName: slack-webhook-url
+
+##################################################
+# 関数定義
+##################################################
+
+functions:
+  FetchGithubRepoList:
+    package:
+      patterns:
+        - package*.json
+        - functions/lib/*.js
+        - functions/FetchGithubRepoList.js
+    handler: functions/FetchGithubRepoList.handler
+    layers:
+      - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${self:custom.baseStackName}-octokit:2
+    environment:
+      GITHUB_TOKEN_PARAMETER_NAME: ${self:custom.githubTokenParameterName}
+
+  OrganizeSyncReport:
+    package:
+      patterns:
+        - package*.json
+        - functions/lib/*.js
+        - functions/OrganizeSyncReport.js
+    handler: functions/OrganizeSyncReport.handler
+
+  MakeSuccessReport:
+    package:
+      patterns:
+        - package*.json
+        - functions/lib/*.js
+        - functions/MakeSuccessReport.js
+    handler: functions/MakeSuccessReport.handler
+
+  MakeErrorReport:
+    package:
+      patterns:
+        - package*.json
+        - functions/lib/*.js
+        - functions/MakeErrorReport.js
+    handler: functions/MakeErrorReport.handler
+
+  PostToSlack:
+    package:
+      patterns:
+        - package*.json
+        - functions/lib/*.js
+        - functions/PostToSlack.js
+    handler: functions/PostToSlack.handler
+    environment:
+      SLACK_WEBHOOK_URL_PARAMETER_NAME: ${self:custom.slackWebhookUrlParameterName}
+
+##################################################
+# Step Functions ステートマシン定義
+##################################################
+
+stepFunctions:
+  stateMachines:
+    # リポジトリ同期タスク (子ステートマシン)
+    SyncTask:
+      name: ${self:service}-SyncTask
+      loggingConfig:
+        level: ERROR
+        includeExecutionData: true
+        destinations:
+          - !GetAtt MySyncTaskLogGroup.Arn
+      role: !GetAtt MyStateMachineIAMRole.Arn
+      definition:
+        StartAt: RunSyncTask
+        States:
+          RunSyncTask:
+            Type: Task
+            Resource: "arn:aws:states:::ecs:runTask.waitForTaskToken"
+            Parameters:
+              Cluster: !ImportValue ${self:custom.baseStackName}-ECSCluster
+              TaskDefinition: !ImportValue ${self:custom.baseStackName}-ECSRepoSyncTaskDefinition
+              LaunchType: "FARGATE"
+              NetworkConfiguration:
+                AwsvpcConfiguration:
+                  AssignPublicIp: "ENABLED"
+                  SecurityGroups:
+                    - !ImportValue ${self:custom.baseStackName}-ECSTaskSecurityGroup
+                  Subnets:
+                    - !ImportValue ${self:custom.baseStackName}-PublicSubnet1Id
+              Overrides:
+                ContainerOverrides:
+                  - Name: worker
+                    Environment:
+                      - Name: GITHUB_OWNER
+                        Value.$: $.owner
+                      - Name: GITHUB_REPO
+                        Value.$: $.repo
+                      - Name: GITHUB_TOKEN
+                        Value: "ssm:${self:custom.githubTokenParameterName}"
+                      - Name: TASK_TOKEN
+                        Value.$: "$$.Task.Token"
+                      - Name: WORK_DIR
+                        Value: /mnt/efs
+                      - Name: FORCE_CLONE
+                        Value: "false"
+            Retry:
+              # 10秒間隔で3回リトライ
+              - ErrorEquals:
+                  - "States.Timeout"
+                IntervalSeconds: 10
+                MaxAttempts: 3
+            Catch:
+              # エラーになった場合でも Fail にせずに終了する
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: OnSyncError
+            TimeoutSeconds: 120
+            End: true
+          OnSyncError:
+            Type: Pass
+            InputPath: $.Error
+            ResultPath: $.error
+            End: true
+
+    BatchWorker:
+      name: ${self:service}-BatchWorker
+      events:
+        - schedule: cron(0 20 ? * SAT *) # JST AM 4:00 (日曜日)
+      loggingConfig:
+        level: ERROR
+        includeExecutionData: true
+        destinations:
+          - !GetAtt MyBatchWorkerLogGroup.Arn
+      role: !GetAtt MyStateMachineIAMRole.Arn
+      definition:
+        StartAt: FetchGithubRepoList
+
+        States:
+          # リポジトリ一覧取得 (GithubRepoList)
+          FetchGithubRepoList:
+            Type: Task
+            Resource: !GetAtt FetchGithubRepoListLambdaFunction.Arn
+            Parameters:
+              githubOwner: ${self:custom.repoOwner}
+            Catch:
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: MakeErrorReport
+            ResultPath: $.repoList
+            Next: SyncAllRepos
+
+          # 各リポジトリの同期タスクを実行
+          SyncAllRepos:
+            Type: Map
+            InputPath: $.repoList
+            ItemsPath: $.repos
+            MaxConcurrency: 10 # 並列実行数
+            ItemProcessor: # イテレータ
+              StartAt: RunSyncTask
+              States:
+                # 子ステートマシンでタスクを実行
+                RunSyncTask:
+                  Type: Task
+                  Resource: "arn:aws:states:::states:startExecution.sync:2" # 2 は Output が JSON で返却される
+                  Parameters:
+                    StateMachineArn: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${self:service}-SyncTask
+                    Input:
+                      AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID: $$.Execution.Id
+                      owner.$: $.owner
+                      repo.$: $.repo
+                  Next: ExtractResult
+                # 子ステートマシンの結果を取得
+                ExtractResult:
+                  Type: Pass
+                  InputPath: $.Output # Output を取り出す
+                  End: true
+            Catch:
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: MakeErrorReport
+            ResultPath: $.syncResults
+            Next: OrganizeSyncReport
+
+          # Slack レポート送信用文字列作成
+          OrganizeSyncReport:
+            Type: Task
+            Resource: !GetAtt OrganizeSyncReportLambdaFunction.Arn
+            ResultPath: $.syncReport
+            Catch:
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: MakeErrorReport
+            Next: MakeSuccessReport
+
+          # Slack レポート送信用文字列作成
+          MakeSuccessReport:
+            Type: Task
+            Resource: !GetAtt MakeSuccessReportLambdaFunction.Arn
+            InputPath: $.syncReport
+            Parameters:
+              startTime.$: $$.Execution.StartTime
+              executionName.$: $$.Execution.Name
+              report.$: $
+            Catch:
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: MakeErrorReport
+            Next: PostToSlack
+
+          # エラー
+          MakeErrorReport:
+            Type: Task
+            Resource: !GetAtt MakeErrorReportLambdaFunction.Arn
+            Catch:
+              - ErrorEquals:
+                  - "States.ALL"
+                Next: MakeErrorReport
+            Next: PostToSlack
+
+          # Slack へのレポート送信
+          PostToSlack:
+            Type: Task
+            Resource: !GetAtt PostToSlackLambdaFunction.Arn
+            End: true
+
+##################################################
+# リソース定義
+##################################################
+
+resources:
+  Resources:
+    MySyncTaskLogGroup:
+      Type: "AWS::Logs::LogGroup"
+      Properties:
+        LogGroupName: /aws/states/${self:service}-SyncTask
+        RetentionInDays: 60
+
+    MyBatchWorkerLogGroup:
+      Type: "AWS::Logs::LogGroup"
+      Properties:
+        LogGroupName: /aws/states/${self:service}-BatchWorker
+        RetentionInDays: 60
+
+    # StepFunctions 用の IAM ロール
+    MyStateMachineIAMRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        Path: "/${self:service}/"
+        RoleName: ${self:service}-stateMachine-role
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "states.amazonaws.com"
+              Action: "sts:AssumeRole"
+        Policies:
+          - PolicyName: ${self:service}-stateMachine-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                # 補足: "The state machine IAM Role is not authorized to access the Log Destination"
+                # が表示されるときは cloudwatch-logs-resource-policy.md を参照
+                - Effect: Allow # CloudWatch Logs
+                  Action:
+                    - logs:CreateLogDelivery
+                    - logs:GetLogDelivery
+                    - logs:UpdateLogDelivery
+                    - logs:DeleteLogDelivery
+                    - logs:ListLogDeliveries
+                    - logs:PutResourcePolicy
+                    - logs:DescribeResourcePolicies
+                    - logs:DescribeLogGroup
+                  Resource: "*"
+                - Effect: Allow # Lambda
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource:
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:custom.baseStackName}*
+                - Effect: "Allow" # StepFunctions
+                  Action:
+                    - "states:StartExecution"
+                  Resource:
+                    - !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${self:custom.baseStackName}*"
+                - Effect: Allow # StepFunctions
+                  Action:
+                    - events:PutTargets
+                    - events:PutRule
+                    - events:DescribeRule
+                  Resource:
+                    - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                    - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForECSTaskRule
+                - Effect: Allow # ECS Task 実行
+                  Action:
+                    - ecs:RunTask
+                  Resource:
+                    - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${self:custom.baseStackName}*
+                - Effect: Allow # ECS Task 実行用 PassRole
+                  Action:
+                    - iam:PassRole
+                  Resource:
+                    - !ImportValue ${self:custom.baseStackName}-ECSTaskExecutionRole
+                    - !ImportValue ${self:custom.baseStackName}-ECSTaskRole

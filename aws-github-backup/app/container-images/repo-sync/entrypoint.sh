@@ -2,7 +2,7 @@
 set -e
 
 function catch() {
-  echo "Error: L${1//\"/\\\"} ${2//\"/\\\"} (${3//\"/\\\"})"
+  send_task_failure "Error: L${1//\"/\\\"} ${2//\"/\\\"} (${3//\"/\\\"})"
 }
 
 function log() {
@@ -78,6 +78,11 @@ function main() {
     send_task_failure "{ \"error\": \"github token is required.\" }"
     exit 1;
   fi
+  # GITHUB_TOKEN が ssm: から始まっていたら ssm から取得する
+  if [[ "${GITHUB_TOKEN}" =~ ^ssm: ]]; then
+    PARAM_NAME=$(echo ${GITHUB_TOKEN} | cut -d ':' -f 2)
+    GITHUB_TOKEN=$(aws ssm get-parameter --with-decryption --query "Parameter.Value" --output text --name "${PARAM_NAME}")
+  fi
   log "github token: $(echo ${GITHUB_TOKEN} | cut -c 1-4)****"
 
   if [ -z "${GITHUB_OWNER}" ]; then
@@ -90,7 +95,7 @@ function main() {
     exit 1;
   fi
 
-  log "task token: ${TASK_TOKEN-'- (locally)'}"
+  log "task token: $(echo ${TASK_TOKEN} | cut -c 1-4)****"
   log "force clone: ${FORCE_CLONE:+false}"
   log "working directory: ${WORK_DIR:-/mnt/efs}"
 

@@ -1,9 +1,13 @@
+type SlackTextField = {
+  type: "mrkdwn" | "plain_text";
+  text: string;
+  emoji?: boolean;
+};
+
 type SlackSectionBlock = {
   type: "section";
-  text: {
-    type: "mrkdwn";
-    text: string;
-  };
+  text: SlackTextField;
+  fields?: SlackTextField[];
 };
 
 type SlackHeaderBlock = {
@@ -23,18 +27,19 @@ type SlackBlock = SlackSectionBlock | SlackHeaderBlock | SlackDividerBlock;
 
 type SlackAttachment =
   | {
-      color: string;
-      author_name: string;
-      title: string;
-      title_link: string;
+      color?: string;
+      author_name?: string;
+      text?: string;
+      title?: string;
+      title_link?: string;
       fields: {
         title: string;
         value: string;
         short: boolean;
       }[];
-      thumb_url: string;
-      footer: string;
-      footer_icon: string;
+      thumb_url?: string;
+      footer?: string;
+      footer_icon?: string;
     }
   | {
       color: string;

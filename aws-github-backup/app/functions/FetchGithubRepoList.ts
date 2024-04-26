@@ -1,19 +1,24 @@
 import { graphql } from "@octokit/graphql";
 import { Organization, RepositoryConnection } from "@octokit/graphql-schema";
+import { getSSMParameterValue } from "./lib/aws.js";
 
 // GitHub から指定したオーナーのリポジトリ一覧を取得する
 //
 // 環境変数
-//   GITHUB_TOKEN: リポジトリ一覧を取得する GitHub のユーザー名
+//   GITHUB_TOKEN_PARAMETER_NAME: リポジトリ一覧を取得する GitHub のユーザー名
 // 戻り値
 //   リポジトリ一覧＋リポジトリ合計数とディスク使用量
 
-export async function getGithubRepoList(event: {
+export async function handler(event: {
   githubOwner: string;
 }): Promise<GithubRepoList> {
-  const githubToken = process.env.GITHUB_TOKEN;
+  const parameterKey = process.env.GITHUB_TOKEN_PARAMETER_NAME;
+  if (!parameterKey) {
+    throw new Error("GITHUB_TOKEN_PARAMETER_NAME is required");
+  }
+  const githubToken = await getSSMParameterValue(parameterKey);
   if (!githubToken) {
-    throw new Error("GITHUB_TOKEN is required");
+    throw new Error(`Key "${parameterKey}" not found in SSM`);
   }
   if (!event.githubOwner) {
     throw new Error("githubOwner is required");
@@ -26,6 +31,9 @@ export async function getGithubRepoList(event: {
   });
   const repoList = await fetchAllRepoList(graphqlWithAuth, event.githubOwner);
   console.debug(`fetched ${repoList.repos.length} repos`);
+  /* DEBUG
+  repoList.repos.splice(0, repoList.repos.length - 10);
+  //*/
   return repoList;
 }
 
@@ -44,11 +52,7 @@ async function fetchAllRepoList(
       }));
       repos.push(...ownerRepos);
     }
-    if (
-      true || // true FOR DEBUG to fetch only 1 page
-      !repoConn.pageInfo.hasNextPage ||
-      !repoConn.pageInfo.endCursor
-    ) {
+    if (!repoConn.pageInfo.hasNextPage || !repoConn.pageInfo.endCursor) {
       const total_count = repoConn.totalCount;
       const total_disk_usage = repoConn.totalDiskUsage;
       console.debug(`fetched ${repos.length} repos: ${JSON.stringify(repos)}`);
@@ -66,12 +70,11 @@ async function fetchRepoConnections(
   gql: typeof graphql,
   params: { login: string; after: string }
 ): Promise<RepositoryConnection> {
-  const limit = 50; // default: 100, set less number FOR DEBUG
   const { organization } = await gql<{ organization: Organization }>(
     `
-query fetch($login: String!, $limit: Int!, $after: String) {
+query fetch($login: String!, $after: String) {
   organization(login: $login) {
-    repositories(orderBy: { field: NAME, direction: DESC }, first: $limit, after: $after) {
+    repositories(orderBy: { field: NAME, direction: DESC }, first: 100, after: $after) {
       totalCount
       totalDiskUsage
       nodes {
@@ -86,7 +89,8 @@ query fetch($login: String!, $limit: Int!, $after: String) {
   }
 }
     `,
-    { limit, ...params }
+    params
   );
+  console.log(organization.repositories);
   return organization.repositories;
 }

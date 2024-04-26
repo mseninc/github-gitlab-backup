@@ -1,0 +1,25 @@
+service: github-backup-lambda-layers
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  logRetentionInDays: 30
+  stage: dev
+  region: ap-northeast-1
+
+  stackTags:
+    SERVICE: ${self:custom.baseStackName}
+    APP: ${self:service}
+    STAGE: ${sls:stage}
+
+custom:
+  baseStackName: github-backup
+
+layers:
+  octokit:
+    name: ${self:custom.baseStackName}-octokit
+    path: lambda-layers/octokit
+    package:
+      patterns:
+        - "./nodejs/**"

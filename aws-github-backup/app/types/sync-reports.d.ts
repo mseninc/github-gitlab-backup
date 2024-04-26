@@ -1,3 +1,11 @@
+/**
+ * OrganizeSyncReport の入力
+ */
+type SyncReportInput = {
+  repoList: GithubRepoList;
+  syncResults: RepoSyncResult[];
+};
+
 type SyncReportRepoResult = GithubOwnerRepo & {
   directory?: string;
   file_count?: number;
