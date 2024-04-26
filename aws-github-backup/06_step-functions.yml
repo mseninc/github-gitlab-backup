@@ -165,7 +165,7 @@ stepFunctions:
     BatchWorker:
       name: ${self:service}-BatchWorker
       events:
-        - schedule: cron(0 20 ? * SAT *) # JST AM 4:00 (日曜日)
+        - schedule: cron(0 20 ? * SAT *) # JST AM 5:00 (日曜日)
       loggingConfig:
         level: ERROR
         includeExecutionData: true
