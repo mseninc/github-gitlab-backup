@@ -32,6 +32,7 @@ function send_task_success() {
 }
 
 function gitsync() {
+  trap 'catch "${LINENO}" "${BASH_COMMAND}" "$?"' ERR
   cd ${WORK_DIR}
 
   git config --global credential.helper '!f() { echo "username=token"; echo "password=$GITHUB_TOKEN"; }; f'
@@ -47,10 +48,12 @@ function gitsync() {
     cd "${GITHUB_REPO}"
     git config --global --add safe.directory "$(pwd)"
     git fetch --prune --all
-    git lfs fetch --all
-    git pull || true
     git config lfs.fetchrecentrefsdays 365
-    git lfs prune || true
+    # NOTE: git lfs fetch --all --prune || git lfs fetch
+    # --all で古いオブジェクトが取得できないときに failed to fetch some objects from 'https://github.com/***' が発生するため
+    # フォールバックとして少なくとも git lfs fetch だけは実行しておく
+    git lfs fetch --all --prune || git lfs fetch
+    git pull || true
   else
     ACTION="clone"
     log "cloning repository..."
@@ -59,7 +62,7 @@ function gitsync() {
     git config --global --add safe.directory "$(pwd)"
     log "retrieving lfs objects..."
     git lfs install
-    git lfs fetch --all
+    git lfs fetch --all --prune || git lfs fetch
   fi
 }
 
