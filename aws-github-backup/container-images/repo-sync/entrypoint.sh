@@ -42,28 +42,35 @@ function gitsync() {
     rm -rf "${GITHUB_REPO}"
   fi
 
-  if [ -d "${GITHUB_REPO}" ]; then
-    ACTION="pull"
-    log "repository exists. Pulling..."
-    cd "${GITHUB_REPO}"
-    git config --global --add safe.directory "$(pwd)"
-    git fetch --prune --all
-    git config lfs.fetchrecentrefsdays 365
-    # NOTE: git lfs fetch --all --prune || git lfs fetch
-    # --all で古いオブジェクトが取得できないときに failed to fetch some objects from 'https://github.com/***' が発生するため
-    # フォールバックとして少なくとも git lfs fetch だけは実行しておく
-    git lfs fetch --all --prune || git lfs fetch
-    git pull || true
-  else
+  if [ ! -d "${GITHUB_REPO}" ]; then
     ACTION="clone"
     log "cloning repository..."
     git clone "https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git"
-    cd "${GITHUB_REPO}"
-    git config --global --add safe.directory "$(pwd)"
-    log "retrieving lfs objects..."
-    git lfs install
-    git lfs fetch --all --prune || git lfs fetch
+  else
+    ACTION="pull"
+    log "repository exists. Pulling..."
   fi
+
+  cd "${GITHUB_REPO}"
+  git lfs install
+  git config --global --add safe.directory "$(pwd)"
+  git config lfs.fetchrecentrefsdays 365
+  # NOTE: チェックアウト中のコミットに LFS 破損ファイルがある場合に lfs fetch ができないため、
+  # 一旦 origin/HEAD を checkout しておく
+  git fetch
+  if ! git checkout origin/HEAD; then
+    log "pulling skipped due to no origin/HEAD."
+    ACTION="none"
+    return
+  fi
+  # NOTE: --all で古いオブジェクトが取得できないときに
+  # failed to fetch some objects from 'https://github.com/***' が発生するため
+  # フォールバックとして少なくとも git lfs fetch だけは実行しておく
+  git fetch --all || git fetch
+  git lfs fetch --all || git lfs fetch
+  # prune は失敗してもバックアップとしては支障ないため無視する
+  git fetch --prune || true
+  git checkout origin/HEAD || true
 }
 
 function main() {
