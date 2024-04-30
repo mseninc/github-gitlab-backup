@@ -53,6 +53,7 @@ function gitsync() {
 
   cd "${GITHUB_REPO}"
   git lfs install
+  git config --global advice.detachedHead false
   git config --global --add safe.directory "$(pwd)"
   git config lfs.fetchrecentrefsdays 365
   # NOTE: チェックアウト中のコミットに LFS 破損ファイルがある場合に lfs fetch ができないため、
