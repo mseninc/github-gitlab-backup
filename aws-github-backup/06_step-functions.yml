@@ -205,7 +205,7 @@ stepFunctions:
                   Parameters:
                     StateMachineArn: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${self:service}-SyncTask
                     Input:
-                      AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID: $$.Execution.Id
+                      AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: $$.Execution.Id
                       owner.$: $.owner
                       repo.$: $.repo
                   Next: ExtractResult
