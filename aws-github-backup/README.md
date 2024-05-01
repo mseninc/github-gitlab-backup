@@ -24,10 +24,11 @@ sso_session = mseninc
 | --------------------- | -------------------------------------------------------- |
 | 01_base.yml           | EC2 用キーペア, EFS ファイルシステム                     |
 | 02_infra.yml          | VPC, ネットワーク周り, EFS 周り, 確認用 EC2 インスタンス |
-| 03_lambda-layers.yml  | Lambda レイヤー                                          |
-| 04_ecr-images.yml     | ECR へのコンテナーイメージのプッシュ                     |
-| 05_ecs-cluster.yml    | ECS クラスター, リポジトリ同期タスク定義                 |
-| 05_step-functions.yml | Step Functions ステートマシン定義                        |
+| 03_ec2.yml            | EFS ファイルシステム確認用 EC2 インスタンス              |
+| 04_lambda-layers.yml  | Lambda レイヤー                                          |
+| 05_ecr-images.yml     | ECR へのコンテナーイメージのプッシュ                     |
+| 06_ecs-cluster.yml    | ECS クラスター, リポジトリ同期タスク定義                 |
+| 07_step-functions.yml | Step Functions ステートマシン定義                        |
 
 ### ステートマシン一覧
 
@@ -78,8 +79,9 @@ aws ssm put-parameter --name slack-webhook-url --value <GITHUB USERNAME> --type 
 ```
 npx serverless deploy --stage prod --config 01_base.yml
 npx serverless deploy --stage prod --config 02_infra.yml
-npx serverless deploy --stage prod --config 03_lambda-layers.yml
-npx serverless deploy --stage prod --config 04_ecr-images.yml
-npx serverless deploy --stage prod --config 05_ecs-cluster.yml
-npx serverless deploy --stage prod --config 06_step-functions.yml
+npx serverless deploy --stage prod --config 03_ec2.yml
+npx serverless deploy --stage prod --config 04_lambda-layers.yml
+npx serverless deploy --stage prod --config 05_ecr-images.yml
+npx serverless deploy --stage prod --config 06_ecs-cluster.yml
+npx serverless deploy --stage prod --config 07_step-functions.yml
 ```

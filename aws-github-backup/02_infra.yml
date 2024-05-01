@@ -16,7 +16,6 @@ provider:
 custom:
   baseStackName: github-backup
   cidr:
-    company: 114.160.200.147/32
     vpc: 172.30.0.0/16
     publicSubnet1: 172.30.0.0/20
     publicSubnet2: 172.30.16.0/20
@@ -213,79 +212,6 @@ resources:
         AccessPointTags:
           - Key: Name
             Value: ${self:service}-storage
-
-    ##################################################
-    # 確認用 EC2
-    ##################################################
-
-    MyEC2SecurityGroup:
-      Type: AWS::EC2::SecurityGroup
-      Properties:
-        GroupDescription: EC2 Security Group
-        VpcId: !Ref MyVPC
-        SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: ${self:custom.cidr.company}
-            Description: from company
-        Tags:
-          - Key: Name
-            Value: ${self:service}-ec2-sg
-
-    MyEC2:
-      Type: AWS::EC2::Instance
-      Properties:
-        ImageId: ${ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2}
-        KeyName: !ImportValue ${self:custom.baseStackName}-KeyPairName
-        InstanceType: t4g.nano
-        NetworkInterfaces:
-          - AssociatePublicIpAddress: true
-            DeviceIndex: "0"
-            SubnetId: !Ref MyPublicSubnet1
-            GroupSet:
-              - !Ref MyEC2SecurityGroup
-        UserData:
-          Fn::Base64: !Sub
-            - |
-              #!/bin/bash -xe
-              sudo yum install -y git amazon-efs-utils
-              mkdir -p ${MOUNT_POINT}
-              echo '${EFS_ID}:/ ${MOUNT_POINT} efs tls,_netdev,accesspoint=${EFS_AP_ID} 0 0' | sudo tee -a /etc/fstab
-              echo "alias mount_efs='sudo mount -t efs -o tls,accesspoint=${EFS_AP_ID} ${EFS_ID}: ${MOUNT_POINT}'" | sudo tee -a /home/ec2-user/.bashrc
-            - EFS_ID: !ImportValue ${self:custom.baseStackName}-EFSFileSystemId
-              EFS_AP_ID: !Ref MyEFSAccessPoint
-              MOUNT_POINT: /mnt/efs
-        Tags:
-          - Key: Name
-            Value: ${self:service}-ec2
-
-    MyEC2StopInstanceRule:
-      Type: AWS::Events::Rule
-      Properties:
-        Name: StopEC2Instance
-        Description: StopEC2Instance
-        ScheduleExpression: cron(0 20 * * ? *)
-        State: ENABLED
-        Targets:
-          - Arn: "arn:aws:ssm:ap-northeast-1::automation-definition/AWS-StopEC2Instance:$DEFAULT"
-            Id: StopEC2Instance
-            RoleArn: !Sub ${MyAmazonSSMAutomationRole.Arn}
-            Input: !Sub '{"InstanceId":["${MyEC2}"]}'
-
-    MyAmazonSSMAutomationRole:
-      Type: AWS::IAM::Role
-      Properties:
-        AssumeRolePolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - "events.amazonaws.com"
-              Action: sts:AssumeRole
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
 
   ##################################################
   # 出力 (クロススタック リファレンス用)

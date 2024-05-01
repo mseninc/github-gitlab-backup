@@ -1,0 +1,124 @@
+service: github-backup-ec2
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  logRetentionInDays: 30
+  stage: dev
+  region: ap-northeast-1
+
+  stackTags:
+    SERVICE: ${self:service}
+    APP: ${self:service}
+    STAGE: ${sls:stage}
+
+custom:
+  baseStackName: github-backup
+  # cidr:
+  #   company: 114.160.200.147/32
+
+resources:
+  Resources:
+    ##################################################
+    # EFS ファイルシステム確認用 EC2 インスタンス
+    ##################################################
+
+    # ※Systems Manager の Session Manager で接続できるためインバウンドポートの開放は不要
+    # MyEC2SecurityGroup:
+    #   Type: AWS::EC2::SecurityGroup
+    #   Properties:
+    #     GroupDescription: EC2 Security Group
+    #     VpcId: !ImportValue ${self:custom.baseStackName}-VpcId
+    #     SecurityGroupIngress:
+    #       - IpProtocol: tcp
+    #         FromPort: 22
+    #         ToPort: 22
+    #         CidrIp: ${self:custom.cidr.company}
+    #         Description: from company
+    #     Tags:
+    #       - Key: Name
+    #         Value: ${self:service}-sg
+
+    MyEC2IamRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "ec2.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Path: "/"
+        RoleName: ${self:service}-role
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+    MyEC2InstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties:
+        Path: "/"
+        Roles:
+          - !Ref MyEC2IamRole
+
+    MyEC2:
+      Type: AWS::EC2::Instance
+      Properties:
+        ImageId: ${ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2}
+        KeyName: !ImportValue ${self:custom.baseStackName}-KeyPairName
+        InstanceType: t4g.nano
+        IamInstanceProfile: !Ref MyEC2InstanceProfile
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: "0"
+            SubnetId: !ImportValue ${self:custom.baseStackName}-PublicSubnet1Id
+            # GroupSet:
+            #   - !Ref MyEC2SecurityGroup
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              #!/bin/bash -xe
+              sudo yum install -y git amazon-efs-utils
+              mkdir -p ${MOUNT_POINT}
+              echo '${EFS_ID}:/ ${MOUNT_POINT} efs tls,_netdev,accesspoint=${EFS_AP_ID} 0 0' | sudo tee -a /etc/fstab
+              echo "alias mount_efs='sudo mount -t efs -o tls,accesspoint=${EFS_AP_ID} ${EFS_ID}: ${MOUNT_POINT}'" | sudo tee -a /home/ec2-user/.bashrc
+            - EFS_ID: !ImportValue ${self:custom.baseStackName}-EFSFileSystemId
+              EFS_AP_ID: !ImportValue ${self:custom.baseStackName}-EFSAccessPointId
+              MOUNT_POINT: /mnt/efs
+        Tags:
+          - Key: Name
+            Value: ${self:service}-instance
+
+    ##################################################
+    # EC2 インスタンスを毎日停止するイベントルール
+    ##################################################
+
+    MyEC2StopInstanceRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: StopEC2Instance
+        Description: StopEC2Instance
+        ScheduleExpression: cron(0 20 * * ? *)
+        State: ENABLED
+        Targets:
+          - Arn: "arn:aws:ssm:ap-northeast-1::automation-definition/AWS-StopEC2Instance:$DEFAULT"
+            Id: StopEC2Instance
+            RoleArn: !Sub ${MyAmazonSSMAutomationRole.Arn}
+            Input: !Sub '{"InstanceId":["${MyEC2}"]}'
+
+    MyAmazonSSMAutomationRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - "events.amazonaws.com"
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
