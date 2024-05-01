@@ -71,6 +71,12 @@ resources:
         KeyName: !ImportValue ${self:custom.baseStackName}-KeyPairName
         InstanceType: t4g.nano
         IamInstanceProfile: !Ref MyEC2InstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              VolumeSize: 8
+              VolumeType: gp3
+              Encrypted: "true"
         NetworkInterfaces:
           - AssociatePublicIpAddress: true
             DeviceIndex: "0"
@@ -84,7 +90,9 @@ resources:
               sudo yum install -y git amazon-efs-utils
               mkdir -p ${MOUNT_POINT}
               echo '${EFS_ID}:/ ${MOUNT_POINT} efs tls,_netdev,accesspoint=${EFS_AP_ID} 0 0' | sudo tee -a /etc/fstab
-              echo "alias mount_efs='sudo mount -t efs -o tls,accesspoint=${EFS_AP_ID} ${EFS_ID}: ${MOUNT_POINT}'" | sudo tee -a /home/ec2-user/.bashrc
+              MOUNT_COMMAND="alias mount_efs='sudo mount -t efs -o tls,accesspoint=${EFS_AP_ID} ${EFS_ID}: ${MOUNT_POINT}'"
+              echo "$MOUNT_COMMAND" | sudo tee -a /home/ec2-user/.bashrc
+              echo "$MOUNT_COMMAND" | sudo tee -a /home/ssm-user/.bashrc
             - EFS_ID: !ImportValue ${self:custom.baseStackName}-EFSFileSystemId
               EFS_AP_ID: !ImportValue ${self:custom.baseStackName}-EFSAccessPointId
               MOUNT_POINT: /mnt/efs
