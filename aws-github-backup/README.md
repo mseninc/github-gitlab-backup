@@ -20,15 +20,15 @@ sso_session = mseninc
 
 ## スタック一覧
 
-| ファイル名            | 説明                                                     |
-| --------------------- | -------------------------------------------------------- |
-| 01_base.yml           | EC2 用キーペア, EFS ファイルシステム                     |
-| 02_infra.yml          | VPC, ネットワーク周り, EFS 周り, 確認用 EC2 インスタンス |
-| 03_ec2.yml            | EFS ファイルシステム確認用 EC2 インスタンス              |
-| 04_lambda-layers.yml  | Lambda レイヤー                                          |
-| 05_ecr-images.yml     | ECR へのコンテナーイメージのプッシュ                     |
-| 06_ecs-cluster.yml    | ECS クラスター, リポジトリ同期タスク定義                 |
-| 07_step-functions.yml | Step Functions ステートマシン定義                        |
+| ファイル名            | 説明                                        |
+| --------------------- | ------------------------------------------- |
+| 01_base.yml           | EC2 用キーペア, EFS ファイルシステム        |
+| 02_infra.yml          | VPC, ネットワーク周り, EFS 周り             |
+| 03_ec2.yml            | EFS ファイルシステム確認用 EC2 インスタンス |
+| 04_lambda-layers.yml  | Lambda レイヤー                             |
+| 05_ecr-images.yml     | ECR へのコンテナーイメージのプッシュ        |
+| 06_ecs-cluster.yml    | ECS クラスター, リポジトリ同期タスク定義    |
+| 07_step-functions.yml | Step Functions ステートマシン定義           |
 
 ### ステートマシン一覧
 
