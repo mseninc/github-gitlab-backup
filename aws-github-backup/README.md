@@ -1,3 +1,104 @@
+# GitHub バックアップ
+
+## サービス構成
+
+```mermaid
+flowchart LR
+
+%% グループとサービス
+Github[GitHub]:::OtherElement
+Slack[Slack]:::OtherElement
+Github -->|リポジトリ一覧取得| LambdaFunctions
+LambdaFunctions -->|Slack通知| Slack
+
+subgraph AWSCloud[AWS]
+    subgraph RegionTokyo[東京リージョン]
+        subgraph GroupLambda[Lambda]
+            LambdaLayer1("Lambda Layer<br>Github (octokit)"):::AWSCompute
+            LambdaFunctions[[Lambda<br>Functions]]:::AWSCompute
+        end
+        subgraph GroupStepFunctions[Step Functions]
+            StateMachineSyncTask("ステートマシン<br>SyncTask"):::AWSCompute
+            StateMachineBatchWorker("ステートマシン<br>BatchWorker"):::AWSCompute
+        end
+        subgraph GroupECR[ECR]
+            RepoSyncImage("コンテナーイメージ<br>RepoSync"):::AWSCompute
+        end
+        subgraph GroupECS[ECS]
+            TaskDefinitionRepoSync("タスク定義<br>RepoSync"):::AWSCompute
+            TaskDefinitionRepoSync -.- RepoSyncImage
+        end
+        subgraph VPC[VPC]
+            subgraph SubnetPublic1[Public Subnet 1]
+                subgraph GroupECSCluster[ECS クラスター]
+                    TaskRepoSync("タスク<br>RepoSync"):::AWSCompute
+                end
+                EC2Instance("EC2 Instance<br>(確認用)<br>Amazon Linux 2023"):::AWSCompute
+            end
+            subgraph SubnetPrivate1[Private Subnet 1]
+                EFSMountTarget{{"EFS<br>マウントターゲット"}}:::AWSNetwork
+            end
+        end
+        subgraph GroupEFS[EFS]
+            EFSAccessPoint{{"EFS<br>アクセスポイント"}}:::AWSNetwork
+            EFSFileSystem[("EFS<br>ファイルシステム")]:::AWSStorage
+        end
+        LambdaFunctions -.-|参照| LambdaLayer1
+        StateMachineBatchWorker -->|呼び出し| LambdaFunctions
+        StateMachineBatchWorker -->|呼び出し| StateMachineSyncTask
+        StateMachineSyncTask -->|タスク実行| TaskDefinitionRepoSync
+        TaskDefinitionRepoSync -->|タスク実行| TaskRepoSync
+        EC2Instance -->|アクセス| EFSMountTarget
+        TaskRepoSync -->|アクセス| EFSMountTarget
+        EFSMountTarget --> EFSAccessPoint
+        EFSAccessPoint --> EFSFileSystem
+    end
+end
+
+%% ---スタイルの設定---
+
+%% デフォルトスタイル
+classDef default fill:none,color:#666,stroke:#aaa
+
+%% AWS Cloudのスタイル
+classDef AWSCloud fill:none,color:#345,stroke:#345
+class AWSCloud AWSCloud
+
+%% Regionのスタイル
+classDef AWSRegion fill:none,color:#59d,stroke:#59d,stroke-dasharray:3
+class RegionTokyo AWSRegion
+
+%% VPCのスタイル
+classDef AWSVPC fill:none,color:#0a0,stroke:#0a0
+class VPC AWSVPC
+
+%% Availability Zoneのスタイル
+classDef AWSAZ fill:none,color:#59d,stroke:#59d,stroke-width:1px,stroke-dasharray:8
+class GA AWSAZ
+
+%% Private subnetのスタイル
+classDef AWSPrivateSubnet fill:#def,color:#07b,stroke:none
+class SubnetPrivate1 AWSPrivateSubnet
+
+%% Public subnetのスタイル
+classDef AWSPublicSubnet fill:#efe,color:#092,stroke:none
+class SubnetPublic1 AWSPublicSubnet
+
+%% Network関連のスタイル
+classDef AWSNetwork fill:#84d,color:#fff,stroke:none
+
+%% Compute関連のスタイル
+classDef AWSCompute fill:#e83,color:#fff,stroke:none
+
+%% DB関連のスタイル
+classDef AWSDatabase fill:#46d,color:#fff,stroke:#fff
+
+%% AWSStorage関連のスタイル
+classDef AWSStorage fill:#493,color:#fff,stroke:#fff
+
+%% 外部要素のスタイル
+classDef OtherElement fill:#aaa,color:#fff,stroke:#fff
+```
 
 
 ## AWS ログイン設定
