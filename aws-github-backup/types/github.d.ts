@@ -7,4 +7,5 @@ type GithubRepoList = {
 type GithubOwnerRepo = {
   owner: string;
   repo: string;
+  taskId: string;
 };

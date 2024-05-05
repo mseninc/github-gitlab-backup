@@ -1,6 +1,7 @@
 import { graphql } from "@octokit/graphql";
 import { Organization, RepositoryConnection } from "@octokit/graphql-schema";
 import { getSSMParameterValue } from "./lib/aws.js";
+import { makeRepoTaskId } from "./lib/util.js";
 
 // GitHub から指定したオーナーのリポジトリ一覧を取得する
 //
@@ -49,6 +50,7 @@ async function fetchAllRepoList(
       const ownerRepos = repoConn.nodes.map((r) => ({
         owner: login,
         repo: r?.name || "",
+        taskId: makeRepoTaskId({ owner: login, repo: r?.name || "" }),
       }));
       repos.push(...ownerRepos);
     }
@@ -74,7 +76,7 @@ async function fetchRepoConnections(
     `
 query fetch($login: String!, $after: String) {
   organization(login: $login) {
-    repositories(orderBy: { field: NAME, direction: DESC }, first: 100, after: $after) {
+    repositories(orderBy: { field: NAME, direction: ASC }, first: 100, after: $after) {
       totalCount
       totalDiskUsage
       nodes {

@@ -204,7 +204,7 @@ stepFunctions:
                   Resource: "arn:aws:states:::states:startExecution.sync:2" # 2 は Output が JSON で返却される
                   Parameters:
                     StateMachineArn: !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${self:service}-SyncTask
-                    Name.$: States.Format('{}_{}_{}', $.owner, $.repo, States.Hash(States.UUID(), 'MD5'))
+                    Name.$: $.taskId
                     Input:
                       AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: $$.Execution.Id
                       owner.$: $.owner
