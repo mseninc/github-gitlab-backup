@@ -186,3 +186,36 @@ npx serverless deploy --stage prod --config 05_ecr-images.yml
 npx serverless deploy --stage prod --config 06_ecs-cluster.yml
 npx serverless deploy --stage prod --config 07_step-functions.yml
 ```
+
+## 確認用インスタンスの起動・接続
+
+EC2 インスタンス `github-backup-ec2-instance` を開始する。
+
+- [インスタンス | EC2 | ap-northeast-1](https://ap-northeast-1.console.aws.amazon.com/ec2/home?region=ap-northeast-1#Instances:v=3;$case=tags:true%5C,client:false;$regex=tags:false%5C,client:false)
+
+EC2 コンソールでインスタンスを右クリックして「接続」をクリック→「セッションマネージャー」を選んで接続する。
+
+sh で接続されるので、 bash を起動する。
+
+```
+sh-4.2$ bash
+[ssm-user@ip-172-30-7-113 bin]$
+```
+
+`/mnt/efs` に EFS がマウントされていなければ、 `mount -a` を実行する。
+
+```
+[ssm-user@ip-172-30-7-113 bin]$ ll /mnt/efs
+total 0
+[ssm-user@ip-172-30-7-113 bin]$ mount -a
+```
+
+```
+[ssm-user@ip-172-30-7-113 bin]$ ll /mnt/efs | more
+total 704
+drwxr-xr-x  3 ec2-user ec2-user 6144 Apr 26 07:55 Information-asset-management
+drwxr-xr-x  3 ec2-user ec2-user 6144 Apr 26 07:54 Visitor-Record
+drwxr-xr-x  7 ec2-user ec2-user 6144 Apr 26 08:08 a11-06-chinese-phonological-search
+```
+
+インスタンスが不要になったら、インスタンスを停止する。
