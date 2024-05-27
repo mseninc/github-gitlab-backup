@@ -1,0 +1,7 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "cSpell.words": ["FARGATE", "mseninc", "Posix", "Redmine"],
+  "[markdown]": {
+    "editor.formatOnSave": false
+  }
+}

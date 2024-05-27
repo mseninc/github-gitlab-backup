@@ -1,5 +1,7 @@
-.vscode/
 node_modules/
-.env
+.env*
+!.env*.example
 repos_*.json
 npm-debug*
+.serverless
+.build/

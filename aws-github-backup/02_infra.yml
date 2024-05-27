@@ -1,0 +1,260 @@
+service: github-backup-infra
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  logRetentionInDays: 30
+  stage: dev
+  region: ap-northeast-1
+
+  stackTags:
+    SERVICE: ${self:service}
+    APP: ${self:service}
+    STAGE: ${sls:stage}
+
+custom:
+  baseStackName: github-backup
+  cidr:
+    vpc: 172.30.0.0/16
+    publicSubnet1: 172.30.0.0/20
+    publicSubnet2: 172.30.16.0/20
+    privateSubnet1: 172.30.32.0/20
+    privateSubnet2: 172.30.48.0/20
+
+resources:
+  Resources:
+    ##############################################################
+    # VPC
+    ##############################################################
+
+    MyVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: ${self:custom.cidr.vpc}
+        EnableDnsHostnames: true
+        EnableDnsSupport: true
+        InstanceTenancy: default
+        Tags:
+          - Key: Name
+            Value: ${self:service}
+
+    ##############################################################
+    # サブネット
+    ##############################################################
+
+    MyPublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: ${self:custom.cidr.publicSubnet1}
+        AvailabilityZone: !Join ["", [!Ref "AWS::Region", "a"]]
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-Public1
+
+    # MyPublicSubnet2:
+    #   Type: AWS::EC2::Subnet
+    #   Properties:
+    #     VpcId: !Ref MyVPC
+    #     CidrBlock: ${self:custom.cidr.publicSubnet2}
+    #     MapPublicIpOnLaunch: false
+    #     AvailabilityZone: !Join ["", [!Ref "AWS::Region", "c"]]
+    #     Tags:
+    #       - Key: Name
+    #         Value: ${self:service}-Public2
+
+    MyPrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: ${self:custom.cidr.privateSubnet1}
+        AvailabilityZone: !Join ["", [!Ref "AWS::Region", "a"]]
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-Private1
+
+    # MyPrivateSubnet2:
+    #   Type: AWS::EC2::Subnet
+    #   Properties:
+    #     VpcId: !Ref MyVPC
+    #     CidrBlock: ${self:custom.cidr.privateSubnet2}
+    #     MapPublicIpOnLaunch: false
+    #     AvailabilityZone: !Join ["", [!Ref "AWS::Region", "c"]]
+    #     Tags:
+    #       - Key: Name
+    #         Value: ${self:service}-Private2
+
+    ##############################################################
+    # インターネットゲートウェイ
+    ##############################################################
+
+    MyInternetGW:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: !Ref "AWS::StackName"
+
+    MyVPCGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        InternetGatewayId: !Ref MyInternetGW
+        VpcId: !Ref MyVPC
+
+    ##############################################################
+    # ルートテーブル（パブリックサブネット）
+    ##############################################################
+
+    MyPublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MyVPC
+        Tags:
+          - Key: Name
+            Value: ${self:service}-Public
+
+    MyPublicRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref MyInternetGW
+        RouteTableId: !Ref MyPublicRouteTable
+
+    MyPublicSubnetRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPublicRouteTable
+        SubnetId: !Ref MyPublicSubnet1
+
+    # MyPublicSubnetRouteTableAssociation2:
+    #   Type: AWS::EC2::SubnetRouteTableAssociation
+    #   Properties:
+    #     RouteTableId: !Ref MyPublicRouteTable
+    #     SubnetId: !Ref MyPublicSubnet2
+
+    ##############################################################
+    # ルートテーブル（プライベートサブネット）
+    ##############################################################
+
+    MyPrivateRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MyVPC
+        Tags:
+          - Key: Name
+            Value: ${self:service}-Private
+
+    MyPrivateSubnetRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref MyPrivateRouteTable
+        SubnetId: !Ref MyPrivateSubnet1
+
+    # MyPrivateSubnetRouteTableAssociation2:
+    #   Type: AWS::EC2::SubnetRouteTableAssociation
+    #   Properties:
+    #     RouteTableId: !Ref MyPrivateRouteTable
+    #     SubnetId: !Ref MyPrivateSubnet2
+
+    ##############################################################
+    # EFS
+    ##############################################################
+
+    # MyLambdaSecurityGroup:
+    #   Type: AWS::EC2::SecurityGroup
+    #   Properties:
+    #     GroupDescription: Lambda Access for EFS
+    #     VpcId: !Ref MyVPC
+    #     Tags:
+    #       - Key: Name
+    #         Value: ${self:service}-lambda
+
+    MyEFSSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: EFS Allowed Ports
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 2049
+            ToPort: 2049
+            CidrIp: ${self:custom.cidr.vpc}
+            # SourceSecurityGroupId: !GetAtt MyLambdaSecurityGroup.GroupId # Lambda からのアクセスの場合
+            Description: private access
+        Tags:
+          - Key: Name
+            Value: ${self:service}-storage-sg
+
+    MyEFSMountTarget:
+      Type: AWS::EFS::MountTarget
+      Properties:
+        FileSystemId: !ImportValue ${self:custom.baseStackName}-EFSFileSystemId
+        SecurityGroups:
+          - !Ref MyEFSSecurityGroup
+        SubnetId: !Ref MyPrivateSubnet1
+
+    MyEFSAccessPoint:
+      Type: AWS::EFS::AccessPoint
+      Properties:
+        FileSystemId: !ImportValue ${self:custom.baseStackName}-EFSFileSystemId
+        PosixUser:
+          Uid: 1000
+          Gid: 1000
+        RootDirectory:
+          Path: /data
+          CreationInfo:
+            OwnerGid: 1000
+            OwnerUid: 1000
+            Permissions: 755
+        AccessPointTags:
+          - Key: Name
+            Value: ${self:service}-storage
+
+  ##################################################
+  # 出力 (クロススタック リファレンス用)
+  ##################################################
+
+  Outputs:
+    VpcId:
+      Value: !Ref MyVPC
+      Export:
+        Name: ${self:custom.baseStackName}-VpcId
+    PublicSubnet1Id:
+      Value: !Ref MyPublicSubnet1
+      Export:
+        Name: ${self:custom.baseStackName}-PublicSubnet1Id
+    # PublicSubnet2Id:
+    #   Value: !Ref MyPublicSubnet2
+    #   Export:
+    #     Name: ${self:custom.baseStackName}-PublicSubnet2Id
+    PrivateSubnet1Id:
+      Value: !Ref MyPrivateSubnet1
+      Export:
+        Name: ${self:custom.baseStackName}-PrivateSubnet1Id
+    # PrivateSubnet2Id:
+    #   Value: !Ref MyPrivateSubnet2
+    #   Export:
+    #     Name: ${self:custom.baseStackName}-PrivateSubnet2Id
+    # LambdaSecurityGroupId:
+    #   Value: !GetAtt MyLambdaSecurityGroup.GroupId
+    #   Export:
+    #     Name: ${self:custom.baseStackName}-LambdaSecurityGroupId
+    EFSAccessPointId:
+      Value: !Ref MyEFSAccessPoint
+      Export:
+        Name: ${self:custom.baseStackName}-EFSAccessPointId
+    EFSAccessPointArn:
+      Value: !GetAtt MyEFSAccessPoint.Arn
+      Export:
+        Name: ${self:custom.baseStackName}-EFSAccessPointArn
+    PublicRouteTableId:
+      Value: !Ref MyPublicRouteTable
+      Export:
+        Name: ${self:custom.baseStackName}-PublicRouteTableId
+    PrivateRouteTableId:
+      Value: !Ref MyPrivateRouteTable
+      Export:
+        Name: ${self:custom.baseStackName}-PrivateRouteTableId

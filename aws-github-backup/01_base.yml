@@ -1,0 +1,55 @@
+service: github-backup-base
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  logRetentionInDays: 30
+  stage: dev
+  region: ap-northeast-1
+
+  stackTags:
+    SERVICE: ${self:service}
+    APP: ${self:service}
+    STAGE: ${sls:stage}
+
+custom:
+  baseStackName: github-backup
+
+resources:
+  Resources:
+    # キーペア
+    MyEC2KeyPair:
+      Type: AWS::EC2::KeyPair
+      Properties:
+        KeyName: ${self:custom.baseStackName}-ec2
+        KeyType: ed25519
+
+    # EFS ファイルシステム
+    MyEFSFileSystem:
+      Type: AWS::EFS::FileSystem
+      Properties:
+        FileSystemTags:
+          - Key: Name
+            Value: ${self:service}-storage
+        BackupPolicy:
+          Status: ENABLED
+        Encrypted: true
+        LifecyclePolicies:
+          - TransitionToIA: AFTER_1_DAY
+        PerformanceMode: generalPurpose
+
+  ##################################################
+  # 出力 (クロススタック リファレンス用)
+  ##################################################
+
+  Outputs:
+    EC2KeyPairName:
+      Value: !Ref MyEC2KeyPair
+      Export:
+        Name: ${self:custom.baseStackName}-KeyPairName
+
+    EFSFileSystemId:
+      Value: !Ref MyEFSFileSystem
+      Export:
+        Name: ${self:custom.baseStackName}-EFSFileSystemId
