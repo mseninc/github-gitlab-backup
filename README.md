@@ -1,80 +1,80 @@
-# GitHub to GitLab auto-backup
+# GitHub to GitLab 自動バックアップ
 
-## Summary
+## 概要
 
-- Node.js v24 or later
+- Node.js v24 以降
 - [GitHub REST API v3](https://developer.github.com/v3/)
 - GitLab CE
 
-## Usage
+## 使用方法
 
-### Install
+### インストール
 
-Just run `npm install`.
+`npm install` を実行してください。
 
 ```bash
 npm install
 ```
 
-### Setup environment variables
+### 環境変数の設定
 
 ```bash
 cp .env.example .env
 vi .env
 ```
 
-Set all required variables in .env. You can also set environment variables directly in your system.
+.env ファイルに必要な変数を設定してください。システムの環境変数として直接設定することもできます。
 
-**Required environment variables:**
-- `GITLAB_API_URL`: GitLab API endpoint URL
-- `GITLAB_NAMESPACE`: Target namespace in GitLab
-- `GITLAB_TOKEN`: GitLab personal access token (can be set as system environment variable for security)
-- `GITHUB_API_URL`: GitHub API endpoint URL
-- `GITHUB_TYPE`: Either `orgs` or `users`
-- `GITHUB_OWNER`: GitHub organization or user name
-- `GITHUB_TOKEN`: GitHub personal access token (can be set as system environment variable for security)
+**必須の環境変数:**
+- `GITLAB_API_URL`: GitLab API のエンドポイント URL
+- `GITLAB_NAMESPACE`: GitLab のターゲットネームスペース
+- `GITLAB_TOKEN`: GitLab 個人アクセストークン（セキュリティのためシステム環境変数として設定可能）
+- `GITHUB_API_URL`: GitHub API のエンドポイント URL
+- `GITHUB_TYPE`: `orgs` または `users` のいずれか
+- `GITHUB_OWNER`: GitHub の組織名またはユーザー名
+- `GITHUB_TOKEN`: GitHub 個人アクセストークン（セキュリティのためシステム環境変数として設定可能）
 
-**Note:** Secret tokens (`GITLAB_TOKEN` and `GITHUB_TOKEN`) can be provided via system environment variables instead of the .env file for better security.
+**注意:** シークレットトークン（`GITLAB_TOKEN` と `GITHUB_TOKEN`）は、セキュリティ向上のため .env ファイルではなくシステム環境変数として提供することができます。
 
-### Start backup
+### バックアップの開始
 
 ```bash
 npm start
 ```
 
-is as same as below.
+以下のコマンドと同じです。
 
 ```bash
 node index.js
 ```
 
-#### clean mode
+#### clean モード
 
-`--clean` mode will ignore the GitHub repository's previous state.
+`--clean` モードは GitHub リポジトリの以前の状態を無視します。
 
 ```bash
 node index.js --clean
 ```
 
-#### force mode
+#### force モード
 
-`--force` mode will ignore the previous timestamp to backup all repos forcibly.
+`--force` モードは以前のタイムスタンプを無視し、すべてのリポジトリを強制的にバックアップします。
 
 ```bash
 node index.js --force
 ```
 
-#### dry mode
+#### dry モード
 
-`--dry` mode will check all of target repos but neither delete projects nor import repos.
+`--dry` モードはすべての対象リポジトリをチェックしますが、プロジェクトの削除やリポジトリのインポートは行いません。
 
 ```bash
 node index.js --dry
 ```
 
-## License
+## ライセンス
 
 Copyright (c) 2019 MESN Inc.
 
-Released under the [MIT license](https://opensource.org/licenses/mit-license.php)
+[MIT license](https://opensource.org/licenses/mit-license.php) の下でリリースされています。
 
