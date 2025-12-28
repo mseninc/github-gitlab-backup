@@ -1,25 +1,25 @@
-const env = require('dotenv').config().parsed;
-const fs = require('fs');
-const axiosBase = require('axios');
+require("dotenv").config();
+const fs = require("fs");
+const axiosBase = require("axios");
 
 // Prepare axios for GitLab API
 const gitlab = axiosBase.create({
-  baseURL: env.GITLAB_API_URL,
+  baseURL: process.env.GITLAB_API_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'PRIVATE-TOKEN': env.GITLAB_TOKEN,
+    "Content-Type": "application/json",
+    "PRIVATE-TOKEN": process.env.GITLAB_TOKEN,
   },
-  responseType: 'json',
+  responseType: "json",
 });
 
 // Prepare axios for GitHub API
 const github = axiosBase.create({
-  baseURL: env.GITHUB_API_URL,
+  baseURL: process.env.GITHUB_API_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `token ${env.GITHUB_TOKEN}`,
+    "Content-Type": "application/json",
+    Authorization: `token ${process.env.GITHUB_TOKEN}`,
   },
-  responseType: 'json',
+  responseType: "json",
 });
 
 /**
@@ -28,7 +28,7 @@ const github = axiosBase.create({
  */
 function loadReposInfo(filename) {
   try {
-    return JSON.parse(fs.readFileSync(filename, 'utf8'));
+    return JSON.parse(fs.readFileSync(filename, "utf8"));
   } catch (error) {
     return []; // fallback
   }
@@ -40,7 +40,7 @@ function loadReposInfo(filename) {
  * @param {Object} repos Repos information
  */
 function saveReposInfo(filename, repos) {
-  fs.writeFileSync(filename, JSON.stringify(repos, null, '  '));
+  fs.writeFileSync(filename, JSON.stringify(repos, null, "  "));
 }
 
 async function getGithubReposPage(url) {
@@ -53,10 +53,16 @@ async function getGithubReposPage(url) {
       next = matches[1];
     }
   }
-  const data = (result.data
-      && result.data.length > 0
-      && result.data.map(({ id, name, updated_at, pushed_at }) => ({ id, name, updated_at, pushed_at }))
-    ) || null;
+  const data =
+    (result.data &&
+      result.data.length > 0 &&
+      result.data.map(({ id, name, updated_at, pushed_at }) => ({
+        id,
+        name,
+        updated_at,
+        pushed_at,
+      }))) ||
+    null;
   return {
     next,
     data,
@@ -84,8 +90,10 @@ async function getGithubRepos(ownerType, owner) {
  * @param {String} projectName Name of target project
  */
 async function getGitlabProject(projectName) {
-  const result = await gitlab.get('projects', { params: { search: projectName } });
-  return result.data.find(x => x.name === projectName);
+  const result = await gitlab.get("projects", {
+    params: { search: projectName },
+  });
+  return result.data.find((x) => x.name === projectName);
 }
 
 /**
@@ -103,11 +111,11 @@ async function deleteGitlabProject(projectId) {
  */
 async function importFromGithub(repoId, targetNamespace) {
   const data = {
-    personal_access_token: env.GITHUB_TOKEN,
+    personal_access_token: process.env.GITHUB_TOKEN,
     repo_id: repoId,
     target_namespace: targetNamespace,
   };
-  await gitlab.post('import/github', data);
+  await gitlab.post("import/github", data);
 }
 
 module.exports = {
