@@ -54,7 +54,7 @@ async function startBackup() {
   let n = 0;
   let errorCount = 0;
   for (const repo of repos) {
-    console.group("🟢", n + 1, repo.name); // start grouping
+    console.group("🔹", n + 1, repo.name); // start grouping
     const pushedAt = new Date(repo.pushed_at);
     const prev = prevRepos.find((x) => x.id === repo.id);
     try {
