@@ -1,4 +1,4 @@
-const env = require('dotenv').config().parsed;
+require('dotenv').config();
 const { format } = require('date-fns');
 const {
   loadReposInfo,
@@ -15,7 +15,7 @@ const FORCE = process.argv.includes('--force');
 const CLEAN = process.argv.includes('--clean');
 
 /**
- * Checks if .env is properly set.
+ * Checks if environment variables are properly set.
  */
 function checkEnv() {
   const expectedKeys = [
@@ -28,8 +28,8 @@ function checkEnv() {
     'GITHUB_TOKEN',
   ];
   for (const key of expectedKeys) {
-    if (!(key in env)) {
-      throw new Error(`${key} not found in .env.`);
+    if (!process.env[key]) {
+      throw new Error(`${key} not found in environment variables.`);
     }
   }
 }
@@ -38,11 +38,11 @@ function checkEnv() {
  * Starts to backup
  */
 async function startBackup() {
-  const reposFilename = `repos_${env.GITHUB_OWNER}.json`;
+  const reposFilename = `repos_${process.env.GITHUB_OWNER}.json`;
   const prevRepos = CLEAN ? [] : await loadReposInfo(reposFilename);
 
   console.log('Collecting GitHub repo informations...');
-  const repos = await getGithubRepos(env.GITHUB_TYPE, env.GITHUB_OWNER);
+  const repos = await getGithubRepos(process.env.GITHUB_TYPE, process.env.GITHUB_OWNER);
   if (!repos) {
     console.log('No repository found.');
     return;
@@ -66,8 +66,8 @@ async function startBackup() {
         // project already exists
         const lastActivityAt = new Date(project.last_activity_at);
         if (!FORCE && pushedAt <= lastActivityAt) {
-          console.log(`GitHub repo pushed at ${repo.pushed_at}, GitLab last activity at ${format(lastActivityAt)}.`);
-          repo.updated_at = format(lastActivityAt);
+          console.log(`GitHub repo pushed at ${repo.pushed_at}, GitLab last activity at ${format(lastActivityAt, "yyyy-MM-dd'T'HH:mm:ss.SSSX")}.`);
+          repo.updated_at = format(lastActivityAt, "yyyy-MM-dd'T'HH:mm:ss.SSSX");
           console.log(`Not updated after GitLab last activity.`);
           continue;
         }
@@ -85,7 +85,7 @@ async function startBackup() {
       }
       // start to imoport
       console.log(`Queueing import GitHub repo to GitLab project...`);
-      if (!DRY) await importFromGithub(repo.id, env.GITLAB_NAMESPACE);
+      if (!DRY) await importFromGithub(repo.id, process.env.GITLAB_NAMESPACE);
     } catch (e) {
       errorCount++;
       // over write pushed_at if not successfully finished.

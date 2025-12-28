@@ -2,7 +2,7 @@
 
 ## Summary
 
-- Node.js v10 or later
+- Node.js v24 or later
 - [GitHub REST API v3](https://developer.github.com/v3/)
 - GitLab CE
 
@@ -16,14 +16,25 @@ Just run `npm install`.
 npm install
 ```
 
-### Setup .env
+### Setup environment variables
 
 ```bash
-cp .env.sample .env
+cp .env.example .env
 vi .env
 ```
 
-Set ALL variables in .env.
+Set all required variables in .env. You can also set environment variables directly in your system.
+
+**Required environment variables:**
+- `GITLAB_API_URL`: GitLab API endpoint URL
+- `GITLAB_NAMESPACE`: Target namespace in GitLab
+- `GITLAB_TOKEN`: GitLab personal access token (can be set as system environment variable for security)
+- `GITHUB_API_URL`: GitHub API endpoint URL
+- `GITHUB_TYPE`: Either `orgs` or `users`
+- `GITHUB_OWNER`: GitHub organization or user name
+- `GITHUB_TOKEN`: GitHub personal access token (can be set as system environment variable for security)
+
+**Note:** Secret tokens (`GITLAB_TOKEN` and `GITHUB_TOKEN`) can be provided via system environment variables instead of the .env file for better security.
 
 ### Start backup
 

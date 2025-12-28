@@ -1,23 +1,23 @@
-const env = require('dotenv').config().parsed;
+require('dotenv').config();
 const fs = require('fs');
 const axiosBase = require('axios');
 
 // Prepare axios for GitLab API
 const gitlab = axiosBase.create({
-  baseURL: env.GITLAB_API_URL,
+  baseURL: process.env.GITLAB_API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'PRIVATE-TOKEN': env.GITLAB_TOKEN,
+    'PRIVATE-TOKEN': process.env.GITLAB_TOKEN,
   },
   responseType: 'json',
 });
 
 // Prepare axios for GitHub API
 const github = axiosBase.create({
-  baseURL: env.GITHUB_API_URL,
+  baseURL: process.env.GITHUB_API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `token ${env.GITHUB_TOKEN}`,
+    'Authorization': `token ${process.env.GITHUB_TOKEN}`,
   },
   responseType: 'json',
 });
@@ -103,7 +103,7 @@ async function deleteGitlabProject(projectId) {
  */
 async function importFromGithub(repoId, targetNamespace) {
   const data = {
-    personal_access_token: env.GITHUB_TOKEN,
+    personal_access_token: process.env.GITHUB_TOKEN,
     repo_id: repoId,
     target_namespace: targetNamespace,
   };
