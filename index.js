@@ -41,7 +41,7 @@ async function startBackup() {
   const reposFilename = `repos_${process.env.GITHUB_OWNER}.json`;
   const prevRepos = CLEAN ? [] : await loadReposInfo(reposFilename);
 
-  console.log('Collecting GitHub repo informations...');
+  console.log('Collecting GitHub repo information...');
   const repos = await getGithubRepos(process.env.GITHUB_TYPE, process.env.GITHUB_OWNER);
   if (!repos) {
     console.log('No repository found.');
@@ -83,7 +83,7 @@ async function startBackup() {
         console.log(`Old project deleted. (id: ${project.id})`);
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
-      // start to imoport
+      // start to import
       console.log(`Queueing import GitHub repo to GitLab project...`);
       if (!DRY) await importFromGithub(repo.id, process.env.GITLAB_NAMESPACE);
     } catch (e) {
@@ -101,7 +101,7 @@ async function startBackup() {
     }
   }
   if (!DRY) saveReposInfo(reposFilename, repos);
-  return errorCount++;
+  return errorCount;
 }
 
 (async () => {
